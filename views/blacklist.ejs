@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Greggs Staff Blacklist</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <style>
+    body { background-color: #111827; color: #e5e7eb; }
+    .table-row:hover { background-color: #1f2937; }
+  </style>
+</head>
+<body class="min-h-screen">
+  <div class="flex h-screen">
+    <!-- Sidebar -->
+    <div class="w-64 bg-gray-900 border-r border-gray-700 p-4">
+      <div class="flex items-center gap-2 mb-8">
+        <div class="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold">G</div>
+        <div>
+          <h1 class="text-xl font-bold">Greggs</h1>
+          <p class="text-xs text-gray-400">Staff Portal</p>
+        </div>
+      </div>
+      <nav class="space-y-2">
+        <a href="#" class="flex items-center gap-3 px-4 py-2 bg-gray-800 rounded-lg text-white">
+          <i class="fas fa-ban"></i> Staff Blacklist
+        </a>
+        <!-- other nav items -->
+      </nav>
+    </div>
+
+    <!-- Main Content -->
+    <div class="flex-1 flex flex-col">
+      <!-- Top Bar -->
+      <div class="bg-gray-900 border-b border-gray-700 px-6 py-4 flex items-center justify-between">
+        <div class="flex items-center gap-4">
+          <h2 class="text-2xl font-semibold">Staff Blacklist</h2>
+        </div>
+        <div class="flex items-center gap-4">
+          <% if (user) { %>
+            <span class="text-sm"><%= user.username %></span>
+            <a href="/logout" class="text-red-400 text-sm hover:underline">Logout</a>
+          <% } %>
+          <% if (isManager) { %>
+            <button onclick="showAddModal()" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg flex items-center gap-2">
+              <i class="fas fa-plus"></i> Add Entry
+            </button>
+          <% } %>
+        </div>
+      </div>
+
+      <!-- Tabs -->
+      <div class="px-6 pt-4 border-b border-gray-700">
+        <div class="flex gap-6">
+          <button onclick="switchTab(0)" class="tab-button active pb-3 text-white border-b-2 border-blue-500">Active</button>
+          <button onclick="switchTab(1)" class="tab-button pb-3 text-gray-400 hover:text-white">Expired</button>
+        </div>
+      </div>
+
+      <!-- Table -->
+      <div class="flex-1 overflow-auto p-6">
+        <table class="w-full">
+          <thead>
+            <tr class="text-left text-gray-400 text-sm border-b border-gray-700">
+              <th class="pb-3">NAME</th>
+              <th class="pb-3">STEAM ID</th>
+              <th class="pb-3">REASON</th>
+              <th class="pb-3">EVIDENCE</th>
+              <th class="pb-3">BLACKLISTED</th>
+              <th class="pb-3">EXPIRY</th>
+              <th class="pb-3">ADDED BY</th>
+              <% if (isManager) { %><th class="pb-3"></th><% } %>
+            </tr>
+          </thead>
+          <tbody id="table-body">
+            <% active.forEach(entry => { %>
+            <tr class="table-row border-b border-gray-700">
+              <td class="py-4"><%= entry.name %></td>
+              <td class="py-4 font-mono text-sm"><%= entry.steam_id || '-' %></td>
+              <td class="py-4"><%= entry.reason %></td>
+              <td class="py-4 text-blue-400 text-sm"><%= entry.evidence ? '<a href="'+entry.evidence+'" target="_blank">Link</a>' : '-' %></td>
+              <td class="py-4 text-red-400">Permanent</td>
+              <td class="py-4">-</td>
+              <td class="py-4"><%= entry.added_by %></td>
+              <% if (isManager) { %>
+              <td class="py-4">
+                <form action="/blacklist/remove/<%= entry.id %>" method="POST" style="display:inline;">
+                  <button type="submit" class="text-red-500 hover:text-red-400">Remove</button>
+                </form>
+              </td>
+              <% } %>
+            </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Modal (simple version) -->
+  <div id="addModal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center">
+    <div class="bg-gray-900 p-6 rounded-xl w-full max-w-md">
+      <h3 class="text-xl mb-4">Add to Blacklist</h3>
+      <form action="/blacklist/add" method="POST">
+        <input type="text" name="name" placeholder="Name" class="w-full mb-3 bg-gray-800 p-3 rounded" required>
+        <input type="text" name="steam_id" placeholder="Steam ID" class="w-full mb-3 bg-gray-800 p-3 rounded">
+        <input type="text" name="steam_id64" placeholder="Steam ID64" class="w-full mb-3 bg-gray-800 p-3 rounded">
+        <textarea name="reason" placeholder="Reason" class="w-full mb-3 bg-gray-800 p-3 rounded h-24" required></textarea>
+        <input type="url" name="evidence" placeholder="Evidence Link (Discord)" class="w-full mb-6 bg-gray-800 p-3 rounded">
+        <div class="flex gap-3">
+          <button type="button" onclick="hideAddModal()" class="flex-1 py-3 bg-gray-700 rounded">Cancel</button>
+          <button type="submit" class="flex-1 py-3 bg-blue-600 rounded">Add Entry</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    function showAddModal() { document.getElementById('addModal').classList.remove('hidden'); }
+    function hideAddModal() { document.getElementById('addModal').classList.add('hidden'); }
+    function switchTab(n) { alert("Expired tab coming soon"); }
+  </script>
+</body>
+</html>
