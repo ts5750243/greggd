@@ -1,0 +1,28 @@
+# Greggs Staff Blacklist
+
+Exact replica of the Mutiny staff blacklist for **Greggs Discord**.
+
+## Features
+- Discord login required
+- Only "Greggs management" role can add/remove entries
+- Removed entries move to Expired tab
+- Clean dark UI matching your screenshot
+
+## Deploy to Railway
+
+1. Create Discord Application: https://discord.com/developers/applications
+2. Add OAuth2 Redirect URI: `https://YOUR-APP.up.railway.app/auth/discord/callback`
+3. Get **Client ID**, **Client Secret**, create Bot + get **Bot Token**
+4. Get your **Guild ID** and **Management Role ID**
+
+5. Deploy this repo on Railway
+6. Add these Environment Variables in Railway:
+   - `DISCORD_CLIENT_ID`
+   - `DISCORD_CLIENT_SECRET`
+   - `DISCORD_BOT_TOKEN`
+   - `GUILD_ID`
+   - `MANAGEMENT_ROLE_ID`
+   - `REDIRECT_URI` (your full callback URL)
+   - `SESSION_SECRET` (any long random string)
+
+Done! Share the Railway URL with your staff.
