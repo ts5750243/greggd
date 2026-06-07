@@ -1,135 +1,23 @@
-require("dotenv").config();
-
-const express = require("express");
-const session = require("express-session");
-const cookieParser = require("cookie-parser");
-const DiscordOAuth2 = require("discord-oauth2");
-const sqlite3 = require("sqlite3").verbose();
-const path = require("path");
-
-const app = express();
-const oauth = new DiscordOAuth2();
-
-// =====================
-// ENV CHECK (prevents silent crashes)
-// =====================
-const {
-  CLIENT_ID,
-  CLIENT_SECRET,
-  SESSION_SECRET,
-  CALLBACK_URL
-} = process.env;
-
-if (!CLIENT_ID || !CLIENT_SECRET || !SESSION_SECRET || !CALLBACK_URL) {
-  console.error("Missing .env variables!");
-  process.exit(1);
-}
-
-// =====================
-// DB
-// =====================
-const db = new sqlite3.Database("./database.sqlite", (err) => {
-  if (err) console.error("DB Error:", err);
-  else console.log("SQLite connected");
-});
-
-// Example table
-db.run(`
-CREATE TABLE IF NOT EXISTS blacklist (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  userId TEXT,
-  reason TEXT
-)
-`);
-
-// =====================
-// MIDDLEWARE
-// =====================
-app.set("view engine", "ejs");
-app.set("views", path.join(__dirname, "views"));
-
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use(cookieParser());
-
-app.use(
-  session({
-    secret: SESSION_SECRET,
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      secure: true, // Railway uses HTTPS
-      sameSite: "none"
-    }
-  })
-);
-
-// =====================
-// BASIC ROUTES
-// =====================
-
-app.get("/", (req, res) => {
-  if (!req.session.user) return res.redirect("/login");
-  res.render("dashboard", { user: req.session.user });
-});
-
-app.get("/login", (req, res) => {
-  const url = oauth.generateAuthUrl({
-    clientId: CLIENT_ID,
-    redirectUri: CALLBACK_URL,
-    scope: ["identify"]
-  });
-
-  res.redirect(url);
-});
-
-app.get("/auth/discord/callback", async (req, res) => {
-  try {
-    const code = req.query.code;
-
-    if (!code) return res.send("No code provided");
-
-    const token = await oauth.tokenRequest({
-      clientId: CLIENT_ID,
-      clientSecret: CLIENT_SECRET,
-      code,
-      scope: "identify",
-      grantType: "authorization_code",
-      redirectUri: CALLBACK_URL
-    });
-
-    const user = await oauth.getUser(token.access_token);
-
-    req.session.user = user;
-
-    res.redirect("/");
-  } catch (err) {
-    console.error("OAuth Error:", err);
-    res.status(500).send("Auth failed");
+{
+  "name": "greggs-blacklist",
+  "version": "1.0.0",
+  "description": "Greggs Discord Staff Blacklist Dashboard",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "build": "echo \"No build step required\""
+  },
+  "engines": {
+    "node": "22.x"
+  },
+  "dependencies": {
+    "axios": "^1.7.0",
+    "cookie-parser": "^1.4.6",
+    "discord-oauth2": "^2.10.0",
+    "dotenv": "^16.4.5",
+    "ejs": "^3.1.10",
+    "express": "^4.19.2",
+    "express-session": "^1.18.0",
+    "sqlite3": "^5.1.7"
   }
-});
-
-app.get("/logout", (req, res) => {
-  req.session.destroy(() => {
-    res.redirect("/");
-  });
-});
-
-// =====================
-// API EXAMPLE (blacklist)
-// =====================
-app.get("/api/blacklist", (req, res) => {
-  db.all("SELECT * FROM blacklist", [], (err, rows) => {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json(rows);
-  });
-});
-
-// =====================
-// CRITICAL RAILWAY FIX
-// =====================
-const PORT = process.env.PORT || 3000;
-
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Server running on port ${PORT}`);
-});
+}
