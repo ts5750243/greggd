@@ -61,18 +61,13 @@ async function isManager(userId) {
 
 // ================= 🔥 FIXED LOGIN (MATCHES YOUR WORKING LINK) =================
 app.get("/login", (req, res) => {
-  const params = new URLSearchParams({
-    client_id: CLIENT_ID,
-    response_type: "code",
-    redirect_uri: CALLBACK_URL,
-    scope: "identify guilds.members.read",
-  });
+  const url =
+    "https://discord.com/oauth2/authorize?client_id=1424810412339363982&response_type=code&redirect_uri=https%3A%2F%2Fgreggs-blacklist.up.railway.app%2Fauth%2Fdiscord%2Fcallback&scope=identify+guilds.members.read";
 
-  const url = `https://discord.com/oauth2/authorize?${params.toString()}`;
+  console.log("LOGIN URL:", url);
 
   res.redirect(url);
 });
-
 // ================= CALLBACK (STABLE FIX) =================
 app.get("/auth/discord/callback", async (req, res) => {
   const code = req.query.code;
