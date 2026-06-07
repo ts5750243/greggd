@@ -11,18 +11,21 @@ const app = express();
 const oauth = new DiscordOAuth2();
 
 // =========================
-// ENV (MATCHES YOUR RAILWAY VARIABLES)
+// TRUST PROXY (CRITICAL FOR RAILWAY)
+// =========================
+app.set("trust proxy", 1);
+
+// =========================
+// ENV
 // =========================
 const {
   DISCORD_CLIENT_ID,
   DISCORD_CLIENT_SECRET,
-  DISCORD_BOT_TOKEN,
+  SESSION_SECRET,
   CALLBACK_URL,
-  REDIRECT_URI,
-  SESSION_SECRET
+  REDIRECT_URI
 } = process.env;
 
-// Use ONE redirect variable (fallback safe)
 const REDIRECT = CALLBACK_URL || REDIRECT_URI;
 
 if (!DISCORD_CLIENT_ID || !DISCORD_CLIENT_SECRET || !SESSION_SECRET || !REDIRECT) {
@@ -47,7 +50,7 @@ CREATE TABLE IF NOT EXISTS blacklist (
 `);
 
 // =========================
-// EXPRESS
+// EXPRESS SETUP
 // =========================
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
@@ -56,24 +59,33 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
+// =========================
+// SESSION (FIXED FOR RAILWAY)
+// =========================
 app.use(
   session({
     secret: SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
+    proxy: true,
     cookie: {
-      secure: true,
-      sameSite: "none"
+      secure: true,        // MUST stay true on Railway (HTTPS)
+      sameSite: "none"     // REQUIRED for OAuth redirect
     }
   })
 );
 
 // =========================
-// HOME ROUTE
+// HOME
 // =========================
 app.get("/", (req, res) => {
   if (!req.session.user) return res.redirect("/login");
-  res.send(`Logged in as ${req.session.user.username}`);
+
+  res.send(`
+    <h1>Logged in</h1>
+    <p>User: ${req.session.user.username}</p>
+    <a href="/logout">Logout</a>
+  `);
 });
 
 // =========================
@@ -108,6 +120,7 @@ app.get("/auth/discord/callback", async (req, res) => {
 
     const user = await oauth.getUser(token.access_token);
 
+    // SAVE SESSION (THIS WAS YOUR ISSUE)
     req.session.user = user;
 
     res.redirect("/");
@@ -122,12 +135,12 @@ app.get("/auth/discord/callback", async (req, res) => {
 // =========================
 app.get("/logout", (req, res) => {
   req.session.destroy(() => {
-    res.redirect("/");
+    res.redirect("/login");
   });
 });
 
 // =========================
-// API EXAMPLE
+// API
 // =========================
 app.get("/api/blacklist", (req, res) => {
   db.all("SELECT * FROM blacklist", [], (err, rows) => {
@@ -137,7 +150,7 @@ app.get("/api/blacklist", (req, res) => {
 });
 
 // =========================
-// RAILWAY SAFE PORT (IMPORTANT)
+// PORT (RAILWAY SAFE)
 // =========================
 const PORT = process.env.PORT;
 
