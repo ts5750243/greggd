@@ -5,29 +5,6 @@ const sqlite3 = require("sqlite3").verbose();
 const app = express();
 const db = new sqlite3.Database("./database.sqlite");
 
-const { Pool } = require("pg");
-
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
-});
-
-// Create blacklist table
-pool.query(`
-CREATE TABLE IF NOT EXISTS blacklist (
-  id SERIAL PRIMARY KEY,
-  name TEXT,
-  steam_id TEXT,
-  steam_url TEXT,
-  note TEXT,
-  created_at TIMESTAMP DEFAULT NOW()
-)
-`).then(() => {
-  console.log("✅ Tables created / ready");
-}).catch(err => {
-  console.error("❌ Table creation failed:", err);
-});
-
 // ================= ENV =================
 const CLIENT_ID = process.env.DISCORD_CLIENT_ID;
 const CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET;
@@ -62,6 +39,36 @@ CREATE TABLE IF NOT EXISTS blacklist (
   discord_id TEXT
 )
 `);
+
+
+const { Pool } = require("pg");
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
+});
+
+// Create tables on startup
+async function initDB() {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS blacklist (
+        id SERIAL PRIMARY KEY,
+        name TEXT,
+        steam_id TEXT,
+        steam_url TEXT,
+        note TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
+    console.log("✅ Database tables ready");
+  } catch (err) {
+    console.error("❌ DB init error:", err);
+  }
+}
+
+initDB();
 
 // ================= ROLE CHECK =================
 async function isManager(userId) {
