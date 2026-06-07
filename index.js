@@ -1,113 +1,40 @@
-// =========================
-// IMPORTS
-// =========================
-const express = require("express");
-const session = require("express-session");
-const sqlite3 = require("sqlite3").verbose();
-const DiscordOauth2 = require("discord-oauth2");
-
-const app = express();
-const db = new sqlite3.Database("./database.sqlite");
-const oauth = new DiscordOauth2();
-
-// =========================
-// ENV VARIABLES (RAILWAY)
-// =========================
-const CLIENT_ID = process.env.CLIENT_ID;
-const CLIENT_SECRET = process.env.CLIENT_SECRET;
-
-/*
-🔥 CALLBACK EXPLAINED:
-This MUST match EXACTLY in:
-- Discord Developer Portal (OAuth2 redirect)
-- Railway environment variable (CALLBACK_URL)
-
-Example:
-https://your-app.up.railway.app/auth/discord/callback
-*/
-const CALLBACK_URL = process.env.CALLBACK_URL;
-
-const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
-const GUILD_ID = process.env.GUILD_ID;
-const MANAGEMENT_ROLE_ID = process.env.MANAGEMENT_ROLE_ID;
-
-// =========================
-// MIDDLEWARE
-// =========================
-app.use(express.urlencoded({ extended: true }));
-
-app.use(
-  session({
-    secret: process.env.SESSION_SECRET || "supersecret",
-    resave: false,
-    saveUninitialized: false,
-  })
-);
-
-app.set("view engine", "ejs");
-
-// =========================
-// DATABASE
-// =========================
-db.run(`
-CREATE TABLE IF NOT EXISTS blacklist (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  name TEXT,
-  steam_id TEXT,
-  reason TEXT
-)
-`);
-
-// =========================
-// ROLE CHECK (MANAGEMENT ONLY)
-// =========================
-async function isManagerUser(userId) {
-  try {
-    const member = await oauth.getUserGuildMember(
-      GUILD_ID,
-      userId,
-      DISCORD_BOT_TOKEN
-    );
-
-    return member?.roles?.includes(MANAGEMENT_ROLE_ID);
-  } catch (err) {
-    console.error("Role check failed:", err);
-    return false;
-  }
-}
-
-// =========================
-// LOGIN ROUTE
-// =========================
-app.get("/login", (req, res) => {
-  if (req.session.user) return res.redirect("/");
-
-  const url = `https://discord.com/oauth2/authorize?client_id=${CLIENT_ID}&response_type=code&redirect_uri=${encodeURIComponent(
-    CALLBACK_URL
-  )}&scope=identify%20guilds.members.read`;
-
-  res.redirect(url);
-});
-
-// =========================
-// 🔥 CALLBACK ROUTE (THIS IS THE IMPORTANT PART)
-// =========================
 app.get("/auth/discord/callback", async (req, res) => {
   const code = req.query.code;
 
-  if (!code) return res.send("Missing OAuth code");
+  if (!code) return res.send("Missing code");
 
   try {
-    const tokenData = await oauth.tokenRequest({
-      clientId: CLIENT_ID,
-      clientSecret: CLIENT_SECRET,
-      code: code,
-      grantType: "authorization_code",
-      redirectUri: CALLBACK_URL,
-      scope: "identify guilds.members.read",
+    // 🔥 MANUAL TOKEN REQUEST (fixes "invalid body" permanently)
+    const params = new URLSearchParams();
+    params.append("client_id", CLIENT_ID);
+    params.append("client_secret", CLIENT_SECRET);
+    params.append("grant_type", "authorization_code");
+    params.append("code", code);
+    params.append("redirect_uri", CALLBACK_URL);
+
+    const tokenResponse = await fetch("https://discord.com/api/oauth2/token", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: params.toString(),
     });
 
-    const user = await oauth.getUser(tokenData.access_token);
+    const tokenData = await tokenResponse.json();
+
+    if (!tokenData.access_token) {
+      console.error("TOKEN ERROR:", tokenData);
+      return res.send("OAuth failed (token error)");
+    }
+
+    // 🔥 GET USER
+    const userRes = await fetch("https://discord.com/api/users/@me", {
+      headers: {
+        Authorization: `Bearer ${tokenData.access_token}`,
+      },
+    });
+
+    const user = await userRes.json();
 
     req.session.user = {
       id: user.id,
@@ -116,93 +43,7 @@ app.get("/auth/discord/callback", async (req, res) => {
 
     return res.redirect("/");
   } catch (err) {
-    console.error("OAuth ERROR:", err?.response?.data || err);
-    return res.send("Login failed (check callback URL / OAuth settings)");
+    console.error("Callback error:", err);
+    return res.send("Login failed");
   }
-});
-
-// =========================
-// LOGOUT
-// =========================
-app.get("/logout", (req, res) => {
-  req.session.destroy(() => {
-    res.redirect("/login");
-  });
-});
-
-// =========================
-// LOGIN GUARD (FORCED LOGIN SYSTEM)
-// =========================
-function requireLogin(req, res, next) {
-  if (!req.session.user) return res.redirect("/login");
-  next();
-}
-
-// =========================
-// HOME PAGE (BLACKLIST VIEW)
-// =========================
-app.get("/", requireLogin, async (req, res) => {
-  db.all("SELECT * FROM blacklist", async (err, rows) => {
-    if (err) return res.status(500).send("Database error");
-
-    let isManager = false;
-
-    if (req.session?.user?.id) {
-      isManager = await isManagerUser(req.session.user.id);
-    }
-
-    res.render("blacklist", {
-      user: req.session.user,
-      active: rows || [],
-      isManager: isManager,
-    });
-  });
-});
-
-// =========================
-// ADD ENTRY (MANAGER ONLY)
-// =========================
-app.post("/api/blacklist/add", async (req, res) => {
-  if (!req.session?.user?.id) {
-    return res.status(401).send("Login required");
-  }
-
-  const allowed = await isManagerUser(req.session.user.id);
-  if (!allowed) return res.status(403).send("No permission");
-
-  const { name, steam_id, reason } = req.body;
-
-  db.run(
-    "INSERT INTO blacklist (name, steam_id, reason) VALUES (?, ?, ?)",
-    [name, steam_id, reason],
-    (err) => {
-      if (err) return res.status(500).send(err.message);
-      res.send("Added");
-    }
-  );
-});
-
-// =========================
-// DELETE ENTRY (MANAGER ONLY)
-// =========================
-app.post("/api/blacklist/delete", async (req, res) => {
-  if (!req.session?.user?.id) {
-    return res.status(401).send("Login required");
-  }
-
-  const allowed = await isManagerUser(req.session.user.id);
-  if (!allowed) return res.status(403).send("No permission");
-
-  db.run("DELETE FROM blacklist WHERE id = ?", [req.body.id], (err) => {
-    if (err) return res.status(500).send(err.message);
-    res.send("Deleted");
-  });
-});
-
-// =========================
-// START SERVER
-// =========================
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log("Server running on port", PORT);
 });
