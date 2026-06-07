@@ -136,25 +136,40 @@ app.get("/logout", (req, res) => {
 app.get("/", async (req, res) => {
   const search = req.query.search || "";
 
-  db.all(
-    "SELECT * FROM blacklist ORDER BY id DESC",
-    async (err, rows) => {
-      if (err) return res.status(500).send("DB error");
+  let query = "SELECT * FROM blacklist";
+  let params = [];
 
-      let canEdit = false;
+  if (search.trim() !== "") {
+    query += `
+      WHERE name LIKE ? 
+      OR steam_id LIKE ? 
+      OR reason LIKE ?
+    `;
+    params = [
+      `%${search}%`,
+      `%${search}%`,
+      `%${search}%`
+    ];
+  }
 
-      if (req.session?.user?.id) {
-        canEdit = await isManager(req.session.user.id);
-      }
+  query += " ORDER BY id DESC";
 
-      res.render("blacklist", {
-        user: req.session.user || null,
-        data: rows || [],
-        canEdit,
-        search,
-      });
+  db.all(query, params, async (err, rows) => {
+    if (err) return res.status(500).send("DB error");
+
+    let canEdit = false;
+
+    if (req.session?.user?.id) {
+      canEdit = await isManager(req.session.user.id);
     }
-  );
+
+    res.render("blacklist", {
+      user: req.session.user || null,
+      data: rows || [],
+      canEdit,
+      search
+    });
+  });
 });
 
 // ================= ADD =================
