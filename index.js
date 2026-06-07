@@ -71,7 +71,10 @@ app.get("/login", (req, res) => {
 // ================= CALLBACK (STABLE FIX) =================
 app.get("/auth/discord/callback", async (req, res) => {
   const code = req.query.code;
-  if (!code) return res.send("No code");
+
+  if (!code) {
+    return res.send("No code received from Discord");
+  }
 
   try {
     const body = new URLSearchParams({
@@ -82,19 +85,35 @@ app.get("/auth/discord/callback", async (req, res) => {
       redirect_uri: CALLBACK_URL,
     });
 
-    const tokenRes = await fetch("https://discord.com/api/oauth2/token", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: body.toString(),
-    });
+    const tokenRes = await fetch(
+      "https://discord.com/api/oauth2/token",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: body.toString(),
+      }
+    );
 
-    const token = await tokenRes.json();
+    const tokenText = await tokenRes.text();
+
+    let token;
+
+    try {
+      token = JSON.parse(tokenText);
+    } catch {
+      return res.send(`
+        <h1>Token Parse Error</h1>
+        <pre>${tokenText}</pre>
+      `);
+    }
 
     if (!token.access_token) {
-      console.error("OAuth error:", token);
-      return res.send("OAuth failed");
+      return res.send(`
+        <h1>Discord OAuth Error</h1>
+        <pre>${JSON.stringify(token, null, 2)}</pre>
+      `);
     }
 
     const userRes = await fetch("https://discord.com/api/users/@me", {
@@ -113,7 +132,11 @@ app.get("/auth/discord/callback", async (req, res) => {
     res.redirect("/");
   } catch (err) {
     console.error(err);
-    res.status(500).send("Login failed");
+
+    res.send(`
+      <h1>Server Error</h1>
+      <pre>${err.stack || err}</pre>
+    `);
   }
 });
 
