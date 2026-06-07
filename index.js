@@ -68,15 +68,13 @@ app.get("/login", (req, res) => {
     scope: "identify guilds.members.read",
   });
 
-  res.redirect(
-    `https://discord.com/oauth2/authorize?${params.toString()}`
-  );
+  res.redirect(`https://discord.com/oauth2/authorize?${params}`);
 });
 
 // ================= CALLBACK =================
 app.get("/auth/discord/callback", async (req, res) => {
   const code = req.query.code;
-  if (!code) return res.send("No code received");
+  if (!code) return res.send("No code");
 
   try {
     const body = new URLSearchParams({
@@ -101,10 +99,7 @@ app.get("/auth/discord/callback", async (req, res) => {
     const token = await tokenRes.json();
 
     if (!token.access_token) {
-      return res.send(`
-        <h2>OAuth Error</h2>
-        <pre>${JSON.stringify(token, null, 2)}</pre>
-      `);
+      return res.send(`<pre>${JSON.stringify(token, null, 2)}</pre>`);
     }
 
     const userRes = await fetch("https://discord.com/api/users/@me", {
@@ -123,7 +118,7 @@ app.get("/auth/discord/callback", async (req, res) => {
     res.redirect("/");
   } catch (err) {
     console.error(err);
-    res.status(500).send("Login failed");
+    res.status(500).send("OAuth failed");
   }
 });
 
@@ -132,9 +127,11 @@ app.get("/logout", (req, res) => {
   req.session.destroy(() => res.redirect("/login"));
 });
 
-// ================= MAIN PAGE =================
+// ================= MAIN PAGE (SEARCH FIXED) =================
 app.get("/", async (req, res) => {
   const search = req.query.search || "";
+
+  console.log("SEARCH:", search);
 
   let query = "SELECT * FROM blacklist";
   let params = [];
@@ -167,7 +164,7 @@ app.get("/", async (req, res) => {
       user: req.session.user || null,
       data: rows || [],
       canEdit,
-      search
+      search,
     });
   });
 });
