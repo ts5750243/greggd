@@ -3,7 +3,7 @@ const session = require("express-session");
 const sqlite3 = require("sqlite3").verbose();
 
 const app = express();
-const db = new sqlite3.Database("./database.sqlite");
+const db = new sqlite3.Database("/data/database.sqlite");
 
 // ================= ENV =================
 const CLIENT_ID = process.env.DISCORD_CLIENT_ID;
