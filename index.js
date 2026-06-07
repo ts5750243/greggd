@@ -11,7 +11,7 @@ const db = new sqlite3.Database("./database.sqlite");
 const oauth = new DiscordOauth2();
 
 // =========================
-// ENV VARIABLES (RAILWAY)
+// ENV
 // =========================
 const CLIENT_ID = process.env.CLIENT_ID;
 const CLIENT_SECRET = process.env.CLIENT_SECRET;
@@ -37,7 +37,7 @@ app.use(
 app.set("view engine", "ejs");
 
 // =========================
-// DATABASE SETUP
+// DATABASE
 // =========================
 db.run(`
 CREATE TABLE IF NOT EXISTS blacklist (
@@ -48,9 +48,9 @@ CREATE TABLE IF NOT EXISTS blacklist (
 `);
 
 // =========================
-// ROLE CHECK (MANAGEMENT ONLY)
+// ROLE CHECK (FIXED NAME)
 // =========================
-async function isManager(userId) {
+async function isManagerUser(userId) {
   try {
     const member = await oauth.getUserGuildMember(
       GUILD_ID,
@@ -66,7 +66,7 @@ async function isManager(userId) {
 }
 
 // =========================
-// DISCORD LOGIN
+// LOGIN
 // =========================
 app.get("/login", (req, res) => {
   const url = `https://discord.com/oauth2/authorize?client_id=${CLIENT_ID}&response_type=code&redirect_uri=${encodeURIComponent(
@@ -116,28 +116,35 @@ app.get("/logout", (req, res) => {
 });
 
 // =========================
-// PUBLIC BLACKLIST PAGE
-// (EVERYONE CAN VIEW)
+// HOME PAGE (FIXED isManager ERROR)
 // =========================
-app.get("/", (req, res) => {
-  db.all("SELECT * FROM blacklist", [], (err, rows) => {
+app.get("/", async (req, res) => {
+  db.all("SELECT * FROM blacklist", async (err, rows) => {
     if (err) return res.status(500).send("Database error");
+
+    let isManager = false;
+
+    if (req.session?.user?.id) {
+      isManager = await isManagerUser(req.session.user.id);
+    }
 
     res.render("blacklist", {
       user: req.session.user || null,
-      data: rows,
-      canEdit: false,
+      data: rows || [],
+      isManager: isManager,
     });
   });
 });
 
 // =========================
-// ADD TO BLACKLIST (MANAGEMENT ONLY)
+// ADD BLACKLIST (MANAGER ONLY)
 // =========================
 app.post("/api/blacklist/add", async (req, res) => {
-  if (!req.session.user) return res.status(401).send("Login required");
+  if (!req.session?.user?.id) {
+    return res.status(401).send("Login required");
+  }
 
-  const allowed = await isManager(req.session.user.id);
+  const allowed = await isManagerUser(req.session.user.id);
   if (!allowed) return res.status(403).send("No permission");
 
   const { userId, reason } = req.body;
@@ -153,12 +160,14 @@ app.post("/api/blacklist/add", async (req, res) => {
 });
 
 // =========================
-// DELETE FROM BLACKLIST (MANAGEMENT ONLY)
+// DELETE BLACKLIST (MANAGER ONLY)
 // =========================
 app.post("/api/blacklist/delete", async (req, res) => {
-  if (!req.session.user) return res.status(401).send("Login required");
+  if (!req.session?.user?.id) {
+    return res.status(401).send("Login required");
+  }
 
-  const allowed = await isManager(req.session.user.id);
+  const allowed = await isManagerUser(req.session.user.id);
   if (!allowed) return res.status(403).send("No permission");
 
   db.run("DELETE FROM blacklist WHERE id = ?", [req.body.id], (err) => {
@@ -172,5 +181,5 @@ app.post("/api/blacklist/delete", async (req, res) => {
 // =========================
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log("Server running on port", PORT);
 });
