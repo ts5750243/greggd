@@ -4,8 +4,7 @@
   "description": "Greggs Discord Staff Blacklist Dashboard",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
-    "build": "echo \"No build step required\""
+    "start": "node index.js"
   },
   "engines": {
     "node": "22.x"
