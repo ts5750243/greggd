@@ -5,16 +5,6 @@ const sqlite3 = require("sqlite3").verbose();
 const app = express();
 const db = new sqlite3.Database("./database.sqlite");
 
-db.query(`
-CREATE TABLE IF NOT EXISTS blacklist (
-  id SERIAL PRIMARY KEY,
-  name TEXT,
-  steam_id TEXT,
-  reason TEXT,
-  discord_id TEXT
-)
-`);
-
 // ================= ENV =================
 const CLIENT_ID = process.env.DISCORD_CLIENT_ID;
 const CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET;
