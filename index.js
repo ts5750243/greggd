@@ -11,7 +11,7 @@ const db = new sqlite3.Database("./database.sqlite");
 const oauth = new DiscordOauth2();
 
 // =========================
-// ENV
+// ENV VARIABLES
 // =========================
 const CLIENT_ID = process.env.CLIENT_ID;
 const CLIENT_SECRET = process.env.CLIENT_SECRET;
@@ -37,18 +37,19 @@ app.use(
 app.set("view engine", "ejs");
 
 // =========================
-// DATABASE
+// DATABASE INIT
 // =========================
 db.run(`
 CREATE TABLE IF NOT EXISTS blacklist (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  userId TEXT,
+  name TEXT,
+  steam_id TEXT,
   reason TEXT
 )
 `);
 
 // =========================
-// ROLE CHECK (FIXED NAME)
+// ROLE CHECK
 // =========================
 async function isManagerUser(userId) {
   try {
@@ -116,7 +117,7 @@ app.get("/logout", (req, res) => {
 });
 
 // =========================
-// HOME PAGE (FIXED isManager ERROR)
+// HOME PAGE (FIXED active ERROR)
 // =========================
 app.get("/", async (req, res) => {
   db.all("SELECT * FROM blacklist", async (err, rows) => {
@@ -130,14 +131,14 @@ app.get("/", async (req, res) => {
 
     res.render("blacklist", {
       user: req.session.user || null,
-      data: rows || [],
+      active: rows || [],   // 🔥 FIX: matches your EJS
       isManager: isManager,
     });
   });
 });
 
 // =========================
-// ADD BLACKLIST (MANAGER ONLY)
+// ADD ENTRY (MANAGER ONLY)
 // =========================
 app.post("/api/blacklist/add", async (req, res) => {
   if (!req.session?.user?.id) {
@@ -147,11 +148,11 @@ app.post("/api/blacklist/add", async (req, res) => {
   const allowed = await isManagerUser(req.session.user.id);
   if (!allowed) return res.status(403).send("No permission");
 
-  const { userId, reason } = req.body;
+  const { name, steam_id, reason } = req.body;
 
   db.run(
-    "INSERT INTO blacklist (userId, reason) VALUES (?, ?)",
-    [userId, reason],
+    "INSERT INTO blacklist (name, steam_id, reason) VALUES (?, ?, ?)",
+    [name, steam_id, reason],
     (err) => {
       if (err) return res.status(500).send(err.message);
       res.send("Added");
@@ -160,7 +161,7 @@ app.post("/api/blacklist/add", async (req, res) => {
 });
 
 // =========================
-// DELETE BLACKLIST (MANAGER ONLY)
+// DELETE ENTRY (MANAGER ONLY)
 // =========================
 app.post("/api/blacklist/delete", async (req, res) => {
   if (!req.session?.user?.id) {
