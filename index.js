@@ -37,7 +37,7 @@ app.use(
 app.set("view engine", "ejs");
 
 // =========================
-// DATABASE INIT
+// DATABASE
 // =========================
 db.run(`
 CREATE TABLE IF NOT EXISTS blacklist (
@@ -67,9 +67,21 @@ async function isManagerUser(userId) {
 }
 
 // =========================
+// AUTO LOGIN PROTECTION (IMPORTANT)
+// =========================
+function requireLogin(req, res, next) {
+  if (!req.session.user) {
+    return res.redirect("/login");
+  }
+  next();
+}
+
+// =========================
 // LOGIN
 // =========================
 app.get("/login", (req, res) => {
+  if (req.session.user) return res.redirect("/");
+
   const url = `https://discord.com/oauth2/authorize?client_id=${CLIENT_ID}&response_type=code&redirect_uri=${encodeURIComponent(
     CALLBACK_URL
   )}&scope=identify%20guilds.members.read`;
@@ -117,9 +129,9 @@ app.get("/logout", (req, res) => {
 });
 
 // =========================
-// HOME PAGE (FIXED active ERROR)
+// HOME PAGE (LOGIN REQUIRED)
 // =========================
-app.get("/", async (req, res) => {
+app.get("/", requireLogin, async (req, res) => {
   db.all("SELECT * FROM blacklist", async (err, rows) => {
     if (err) return res.status(500).send("Database error");
 
@@ -130,9 +142,9 @@ app.get("/", async (req, res) => {
     }
 
     res.render("blacklist", {
-      user: req.session.user || null,
-      active: rows || [],   // 🔥 FIX: matches your EJS
-      isManager: isManager,
+      user: req.session.user,
+      active: rows || [],
+      isManager,
     });
   });
 });
