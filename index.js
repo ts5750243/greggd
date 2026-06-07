@@ -33,7 +33,8 @@ CREATE TABLE IF NOT EXISTS blacklist (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT,
   steam_id TEXT,
-  reason TEXT
+  reason TEXT,
+  discord_id TEXT
 )
 `);
 
@@ -68,7 +69,7 @@ app.get("/login", (req, res) => {
     scope: "identify guilds.members.read",
   });
 
-  res.redirect(`https://discord.com/oauth2/authorize?${params}`);
+  res.redirect(`https://discord.com/oauth2/authorize?${params.toString()}`);
 });
 
 // ================= CALLBACK =================
@@ -127,25 +128,25 @@ app.get("/logout", (req, res) => {
   req.session.destroy(() => res.redirect("/login"));
 });
 
-// ================= MAIN PAGE (SEARCH FIXED) =================
+// ================= MAIN PAGE + SEARCH =================
 app.get("/", async (req, res) => {
   const search = req.query.search || "";
-
-  console.log("SEARCH:", search);
 
   let query = "SELECT * FROM blacklist";
   let params = [];
 
   if (search.trim() !== "") {
     query += `
-      WHERE name LIKE ? 
-      OR steam_id LIKE ? 
+      WHERE name LIKE ?
+      OR steam_id LIKE ?
       OR reason LIKE ?
+      OR discord_id LIKE ?
     `;
     params = [
       `%${search}%`,
       `%${search}%`,
-      `%${search}%`
+      `%${search}%`,
+      `%${search}%`,
     ];
   }
 
@@ -169,34 +170,73 @@ app.get("/", async (req, res) => {
   });
 });
 
-// ================= ADD =================
+// ================= ADD + BAN =================
 app.post("/add", async (req, res) => {
   if (!req.session?.user) return res.redirect("/login");
 
   if (!(await isManager(req.session.user.id)))
     return res.status(403).send("No permission");
 
+  const { name, steam_id, reason, discord_id } = req.body;
+
   db.run(
-    "INSERT INTO blacklist (name, steam_id, reason) VALUES (?, ?, ?)",
-    [req.body.name, req.body.steam_id, req.body.reason],
-    (err) => {
+    "INSERT INTO blacklist (name, steam_id, reason, discord_id) VALUES (?, ?, ?, ?)",
+    [name, steam_id, reason, discord_id],
+    async (err) => {
       if (err) return res.status(500).send("DB error");
+
+      // 🔥 BAN USER
+      if (discord_id) {
+        await fetch(
+          `https://discord.com/api/guilds/${GUILD_ID}/bans/${discord_id}`,
+          {
+            method: "PUT",
+            headers: {
+              Authorization: `Bot ${BOT_TOKEN}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              reason: reason || "Blacklisted",
+            }),
+          }
+        );
+      }
+
       res.redirect("/");
     }
   );
 });
 
-// ================= DELETE =================
+// ================= DELETE + UNBAN =================
 app.post("/delete", async (req, res) => {
   if (!req.session?.user) return res.redirect("/login");
 
   if (!(await isManager(req.session.user.id)))
     return res.status(403).send("No permission");
 
-  db.run("DELETE FROM blacklist WHERE id = ?", [req.body.id], (err) => {
-    if (err) return res.status(500).send("DB error");
-    res.redirect("/");
-  });
+  db.get(
+    "SELECT discord_id FROM blacklist WHERE id = ?",
+    [req.body.id],
+    async (err, row) => {
+      if (err) return res.status(500).send("DB error");
+
+      if (row?.discord_id) {
+        await fetch(
+          `https://discord.com/api/guilds/${GUILD_ID}/bans/${row.discord_id}`,
+          {
+            method: "DELETE",
+            headers: {
+              Authorization: `Bot ${BOT_TOKEN}`,
+            },
+          }
+        );
+      }
+
+      db.run("DELETE FROM blacklist WHERE id = ?", [req.body.id]);
+
+      res.redirect("/");
+    }
+  );
 });
 
 // ================= START =================
