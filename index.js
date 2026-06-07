@@ -11,16 +11,21 @@ const app = express();
 const oauth = new DiscordOAuth2();
 
 // =========================
-// ENV CHECK (prevents silent crashes)
+// ENV (MATCHES YOUR RAILWAY VARIABLES)
 // =========================
 const {
-  CLIENT_ID,
-  CLIENT_SECRET,
-  SESSION_SECRET,
-  CALLBACK_URL
+  DISCORD_CLIENT_ID,
+  DISCORD_CLIENT_SECRET,
+  DISCORD_BOT_TOKEN,
+  CALLBACK_URL,
+  REDIRECT_URI,
+  SESSION_SECRET
 } = process.env;
 
-if (!CLIENT_ID || !CLIENT_SECRET || !SESSION_SECRET || !CALLBACK_URL) {
+// Use ONE redirect variable (fallback safe)
+const REDIRECT = CALLBACK_URL || REDIRECT_URI;
+
+if (!DISCORD_CLIENT_ID || !DISCORD_CLIENT_SECRET || !SESSION_SECRET || !REDIRECT) {
   console.error("❌ Missing environment variables!");
   process.exit(1);
 }
@@ -29,7 +34,7 @@ if (!CLIENT_ID || !CLIENT_SECRET || !SESSION_SECRET || !CALLBACK_URL) {
 // DATABASE
 // =========================
 const db = new sqlite3.Database("./database.sqlite", (err) => {
-  if (err) console.error("DB Error:", err);
+  if (err) console.error(err);
   else console.log("SQLite connected");
 });
 
@@ -42,7 +47,7 @@ CREATE TABLE IF NOT EXISTS blacklist (
 `);
 
 // =========================
-// EXPRESS CONFIG
+// EXPRESS
 // =========================
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
@@ -64,39 +69,41 @@ app.use(
 );
 
 // =========================
-// ROUTES
+// HOME ROUTE
 // =========================
-
-// Home
 app.get("/", (req, res) => {
   if (!req.session.user) return res.redirect("/login");
   res.send(`Logged in as ${req.session.user.username}`);
 });
 
-// Login
+// =========================
+// LOGIN
+// =========================
 app.get("/login", (req, res) => {
   const url = oauth.generateAuthUrl({
-    clientId: CLIENT_ID,
-    redirectUri: CALLBACK_URL,
+    clientId: DISCORD_CLIENT_ID,
+    redirectUri: REDIRECT,
     scope: ["identify"]
   });
 
   res.redirect(url);
 });
 
-// OAuth Callback
+// =========================
+// CALLBACK
+// =========================
 app.get("/auth/discord/callback", async (req, res) => {
   try {
     const code = req.query.code;
     if (!code) return res.send("No code provided");
 
     const token = await oauth.tokenRequest({
-      clientId: CLIENT_ID,
-      clientSecret: CLIENT_SECRET,
+      clientId: DISCORD_CLIENT_ID,
+      clientSecret: DISCORD_CLIENT_SECRET,
       code,
       scope: "identify",
       grantType: "authorization_code",
-      redirectUri: CALLBACK_URL
+      redirectUri: REDIRECT
     });
 
     const user = await oauth.getUser(token.access_token);
@@ -110,14 +117,18 @@ app.get("/auth/discord/callback", async (req, res) => {
   }
 });
 
-// Logout
+// =========================
+// LOGOUT
+// =========================
 app.get("/logout", (req, res) => {
   req.session.destroy(() => {
     res.redirect("/");
   });
 });
 
-// API Example
+// =========================
+// API EXAMPLE
+// =========================
 app.get("/api/blacklist", (req, res) => {
   db.all("SELECT * FROM blacklist", [], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
@@ -126,10 +137,10 @@ app.get("/api/blacklist", (req, res) => {
 });
 
 // =========================
-// CRITICAL RAILWAY FIX (NO HARDCODED PORTS)
+// RAILWAY SAFE PORT (IMPORTANT)
 // =========================
 const PORT = process.env.PORT;
 
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+  console.log("🚀 Server running on port", PORT);
 });
