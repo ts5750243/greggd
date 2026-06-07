@@ -48,6 +48,18 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
+app.get("/debug-db", (req, res) => {
+  db.all("SELECT * FROM blacklist", [], (err, rows) => {
+    if (err) {
+      console.log("❌ DB ERROR:", err);
+      return res.send("DB ERROR - check logs");
+    }
+
+    console.log("📦 CURRENT BLACKLIST:", rows);
+    res.json(rows);
+  });
+});
+
 // ================= ROLE CHECK =================
 async function isManager(userId) {
   try {
