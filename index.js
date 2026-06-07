@@ -1,49 +1,55 @@
-app.get("/auth/discord/callback", async (req, res) => {
-  const code = req.query.code;
+// =========================
+// IMPORTS
+// =========================
+const express = require("express");
+const session = require("express-session");
+const sqlite3 = require("sqlite3").verbose();
 
-  if (!code) return res.send("Missing code");
+// =========================
+// APP INIT (THIS FIXES YOUR ERROR)
+// =========================
+const app = express();
+const db = new sqlite3.Database("./database.sqlite");
 
-  try {
-    // 🔥 MANUAL TOKEN REQUEST (fixes "invalid body" permanently)
-    const params = new URLSearchParams();
-    params.append("client_id", CLIENT_ID);
-    params.append("client_secret", CLIENT_SECRET);
-    params.append("grant_type", "authorization_code");
-    params.append("code", code);
-    params.append("redirect_uri", CALLBACK_URL);
+// =========================
+// MIDDLEWARE
+// =========================
+app.use(express.urlencoded({ extended: true }));
 
-    const tokenResponse = await fetch("https://discord.com/api/oauth2/token", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: params.toString(),
-    });
+app.use(
+  session({
+    secret: "supersecret",
+    resave: false,
+    saveUninitialized: false,
+  })
+);
 
-    const tokenData = await tokenResponse.json();
+app.set("view engine", "ejs");
 
-    if (!tokenData.access_token) {
-      console.error("TOKEN ERROR:", tokenData);
-      return res.send("OAuth failed (token error)");
-    }
+// =========================
+// DATABASE
+// =========================
+db.run(`
+CREATE TABLE IF NOT EXISTS blacklist (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT,
+  steam_id TEXT,
+  reason TEXT
+)
+`);
 
-    // 🔥 GET USER
-    const userRes = await fetch("https://discord.com/api/users/@me", {
-      headers: {
-        Authorization: `Bearer ${tokenData.access_token}`,
-      },
-    });
+// =========================
+// HOME TEST ROUTE (CHECK SERVER WORKS)
+// =========================
+app.get("/", (req, res) => {
+  res.send("Server is running ✔");
+});
 
-    const user = await userRes.json();
+// =========================
+// START SERVER
+// =========================
+const PORT = process.env.PORT || 3000;
 
-    req.session.user = {
-      id: user.id,
-      username: user.username,
-    };
-
-    return res.redirect("/");
-  } catch (err) {
-    console.error("Callback error:", err);
-    return res.send("Login failed");
-  }
+app.listen(PORT, () => {
+  console.log("Server running on port", PORT);
 });
