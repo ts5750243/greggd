@@ -11,10 +11,20 @@ const db = new sqlite3.Database("./database.sqlite");
 const oauth = new DiscordOauth2();
 
 // =========================
-// ENV VARIABLES
+// ENV VARIABLES (RAILWAY)
 // =========================
 const CLIENT_ID = process.env.CLIENT_ID;
 const CLIENT_SECRET = process.env.CLIENT_SECRET;
+
+/*
+🔥 CALLBACK EXPLAINED:
+This MUST match EXACTLY in:
+- Discord Developer Portal (OAuth2 redirect)
+- Railway environment variable (CALLBACK_URL)
+
+Example:
+https://your-app.up.railway.app/auth/discord/callback
+*/
 const CALLBACK_URL = process.env.CALLBACK_URL;
 
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
@@ -49,7 +59,7 @@ CREATE TABLE IF NOT EXISTS blacklist (
 `);
 
 // =========================
-// ROLE CHECK
+// ROLE CHECK (MANAGEMENT ONLY)
 // =========================
 async function isManagerUser(userId) {
   try {
@@ -67,17 +77,7 @@ async function isManagerUser(userId) {
 }
 
 // =========================
-// AUTO LOGIN PROTECTION (IMPORTANT)
-// =========================
-function requireLogin(req, res, next) {
-  if (!req.session.user) {
-    return res.redirect("/login");
-  }
-  next();
-}
-
-// =========================
-// LOGIN
+// LOGIN ROUTE
 // =========================
 app.get("/login", (req, res) => {
   if (req.session.user) return res.redirect("/");
@@ -90,19 +90,21 @@ app.get("/login", (req, res) => {
 });
 
 // =========================
-// CALLBACK
+// 🔥 CALLBACK ROUTE (THIS IS THE IMPORTANT PART)
 // =========================
 app.get("/auth/discord/callback", async (req, res) => {
   const code = req.query.code;
+
+  if (!code) return res.send("Missing OAuth code");
 
   try {
     const tokenData = await oauth.tokenRequest({
       clientId: CLIENT_ID,
       clientSecret: CLIENT_SECRET,
-      code,
-      scope: "identify guilds.members.read",
+      code: code,
       grantType: "authorization_code",
       redirectUri: CALLBACK_URL,
+      scope: "identify guilds.members.read",
     });
 
     const user = await oauth.getUser(tokenData.access_token);
@@ -112,10 +114,10 @@ app.get("/auth/discord/callback", async (req, res) => {
       username: user.username,
     };
 
-    res.redirect("/");
+    return res.redirect("/");
   } catch (err) {
-    console.error(err);
-    res.send("Login failed");
+    console.error("OAuth ERROR:", err?.response?.data || err);
+    return res.send("Login failed (check callback URL / OAuth settings)");
   }
 });
 
@@ -129,7 +131,15 @@ app.get("/logout", (req, res) => {
 });
 
 // =========================
-// HOME PAGE (LOGIN REQUIRED)
+// LOGIN GUARD (FORCED LOGIN SYSTEM)
+// =========================
+function requireLogin(req, res, next) {
+  if (!req.session.user) return res.redirect("/login");
+  next();
+}
+
+// =========================
+// HOME PAGE (BLACKLIST VIEW)
 // =========================
 app.get("/", requireLogin, async (req, res) => {
   db.all("SELECT * FROM blacklist", async (err, rows) => {
@@ -144,7 +154,7 @@ app.get("/", requireLogin, async (req, res) => {
     res.render("blacklist", {
       user: req.session.user,
       active: rows || [],
-      isManager,
+      isManager: isManager,
     });
   });
 });
