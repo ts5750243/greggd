@@ -6,8 +6,8 @@ const app = express();
 const db = new sqlite3.Database("./database.sqlite");
 
 // ================= ENV =================
-const CLIENT_ID = process.env.CLIENT_ID;
-const CLIENT_SECRET = process.env.CLIENT_SECRET;
+const CLIENT_ID = process.env.DISCORD_CLIENT_ID;
+const CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET;
 const CALLBACK_URL = process.env.CALLBACK_URL;
 
 const GUILD_ID = process.env.GUILD_ID;
@@ -59,29 +59,31 @@ async function isManager(userId) {
   }
 }
 
-// ================= 🔥 FIXED LOGIN (MATCHES YOUR WORKING LINK) =================
+// ================= LOGIN =================
 app.get("/login", (req, res) => {
-  const url =
-    "https://discord.com/oauth2/authorize?client_id=1424810412339363982&response_type=code&redirect_uri=https%3A%2F%2Fgreggs-blacklist.up.railway.app%2Fauth%2Fdiscord%2Fcallback&scope=identify+guilds.members.read";
+  const params = new URLSearchParams({
+    client_id: CLIENT_ID,
+    response_type: "code",
+    redirect_uri: CALLBACK_URL,
+    scope: "identify guilds.members.read",
+  });
 
-  console.log("LOGIN URL:", url);
-
-  res.redirect(url);
+  res.redirect(
+    `https://discord.com/oauth2/authorize?${params.toString()}`
+  );
 });
-// ================= CALLBACK (STABLE FIX) =================
+
+// ================= CALLBACK =================
 app.get("/auth/discord/callback", async (req, res) => {
   const code = req.query.code;
-
-  if (!code) {
-    return res.send("No code received from Discord");
-  }
+  if (!code) return res.send("No code received");
 
   try {
     const body = new URLSearchParams({
       client_id: CLIENT_ID,
       client_secret: CLIENT_SECRET,
       grant_type: "authorization_code",
-      code: code,
+      code,
       redirect_uri: CALLBACK_URL,
     });
 
@@ -96,22 +98,11 @@ app.get("/auth/discord/callback", async (req, res) => {
       }
     );
 
-    const tokenText = await tokenRes.text();
-
-    let token;
-
-    try {
-      token = JSON.parse(tokenText);
-    } catch {
-      return res.send(`
-        <h1>Token Parse Error</h1>
-        <pre>${tokenText}</pre>
-      `);
-    }
+    const token = await tokenRes.json();
 
     if (!token.access_token) {
       return res.send(`
-        <h1>Discord OAuth Error</h1>
+        <h2>OAuth Error</h2>
         <pre>${JSON.stringify(token, null, 2)}</pre>
       `);
     }
@@ -132,11 +123,7 @@ app.get("/auth/discord/callback", async (req, res) => {
     res.redirect("/");
   } catch (err) {
     console.error(err);
-
-    res.send(`
-      <h1>Server Error</h1>
-      <pre>${err.stack || err}</pre>
-    `);
+    res.status(500).send("Login failed");
   }
 });
 
@@ -149,22 +136,25 @@ app.get("/logout", (req, res) => {
 app.get("/", async (req, res) => {
   const search = req.query.search || "";
 
-  db.all("SELECT * FROM blacklist ORDER BY id DESC", async (err, rows) => {
-    if (err) return res.status(500).send("DB error");
+  db.all(
+    "SELECT * FROM blacklist ORDER BY id DESC",
+    async (err, rows) => {
+      if (err) return res.status(500).send("DB error");
 
-    let canEdit = false;
+      let canEdit = false;
 
-    if (req.session?.user?.id) {
-      canEdit = await isManager(req.session.user.id);
+      if (req.session?.user?.id) {
+        canEdit = await isManager(req.session.user.id);
+      }
+
+      res.render("blacklist", {
+        user: req.session.user || null,
+        data: rows || [],
+        canEdit,
+        search,
+      });
     }
-
-    res.render("blacklist", {
-      user: req.session.user || null,
-      data: rows || [],
-      canEdit,
-      search,
-    });
-  });
+  );
 });
 
 // ================= ADD =================
@@ -199,4 +189,6 @@ app.post("/delete", async (req, res) => {
 
 // ================= START =================
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("Server running on port", PORT));
+app.listen(PORT, () =>
+  console.log("Server running on port", PORT)
+);
