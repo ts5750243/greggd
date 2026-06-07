@@ -1,131 +1,184 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Blacklist</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Blacklist</title>
 
-<style>
-body { margin:0; font-family:Arial; background:#0b0f19; color:white; }
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial;
+      background: #0b0f19;
+      color: #fff;
+    }
 
-.header {
-  padding:15px;
-  background:#111827;
-  display:flex;
-  justify-content:space-between;
-}
+    .topbar {
+      background: #111827;
+      padding: 15px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
 
-.container { padding:15px; }
+    .container {
+      padding: 15px;
+    }
 
-input {
-  padding:10px;
-  background:#1f2937;
-  border:none;
-  color:white;
-  border-radius:6px;
-}
+    input {
+      padding: 10px;
+      border: none;
+      border-radius: 6px;
+      background: #1f2937;
+      color: white;
+      outline: none;
+    }
 
-button {
-  padding:10px;
-  border:none;
-  border-radius:6px;
-  background:#3b82f6;
-  color:white;
-  cursor:pointer;
-}
+    button {
+      padding: 10px 12px;
+      border: none;
+      border-radius: 6px;
+      background: #3b82f6;
+      color: white;
+      cursor: pointer;
+    }
 
-table {
-  width:100%;
-  margin-top:15px;
-  border-collapse:collapse;
-}
+    button:hover {
+      background: #2563eb;
+    }
 
-td, th {
-  padding:10px;
-  border-bottom:1px solid #1f2937;
-}
+    table {
+      width: 100%;
+      margin-top: 15px;
+      border-collapse: collapse;
+    }
 
-tr:hover { background:#111827; }
+    th, td {
+      padding: 10px;
+      border-bottom: 1px solid #1f2937;
+      text-align: left;
+    }
 
-.badge {
-  background:red;
-  padding:4px 8px;
-  border-radius:6px;
-  font-size:12px;
-}
+    tr:hover {
+      background: #111827;
+    }
 
-.flex { display:flex; gap:10px; flex-wrap:wrap; }
+    .badge {
+      background: red;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 12px;
+    }
 
-@media(max-width:600px){
-  table { font-size:12px; }
-}
-</style>
+    .flex {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .modal {
+      display: none;
+      position: fixed;
+      top: 20%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #111827;
+      padding: 20px;
+      border-radius: 10px;
+      width: 300px;
+    }
+
+    .modal input {
+      width: 100%;
+      margin-bottom: 10px;
+    }
+
+    @media (max-width: 600px) {
+      table {
+        font-size: 12px;
+      }
+    }
+  </style>
 </head>
 
 <body>
 
-<div class="header">
-  <div><b>BLACKLIST PANEL</b></div>
+<div class="topbar">
+  <div><b>BLACKLIST</b></div>
 
   <div>
     <% if (user) { %>
-      <%= user.username %> | <a href="/logout">Logout</a>
+      <%= user.username %>
+      | <a href="/logout" style="color:#f87171;">Logout</a>
     <% } else { %>
-      <a href="/login">Login</a>
+      <a href="/login" style="color:#60a5fa;">Login</a>
     <% } %>
   </div>
 </div>
 
 <div class="container">
 
-<form method="GET" class="flex">
-  <input name="search" placeholder="Search..." value="<%= search %>">
-  <button>Search</button>
-</form>
+  <!-- SEARCH -->
+  <form method="GET" class="flex">
+    <input name="search" placeholder="Search..." value="<%= search || '' %>">
+    <button>Search</button>
+  </form>
 
-<% if (canEdit) { %>
-<button onclick="document.getElementById('add').style.display='block'">
-  + Add Entry
-</button>
-<% } %>
-
-<table>
-<tr>
-  <th>Name</th>
-  <th>Steam</th>
-  <th>Reason</th>
-  <th>Status</th>
-  <% if (canEdit) { %><th>Action</th><% } %>
-</tr>
-
-<% data.forEach(e => { %>
-<tr>
-  <td><%= e.name %></td>
-  <td><%= e.steam_id %></td>
-  <td><%= e.reason %></td>
-  <td><span class="badge">BANNED</span></td>
-
+  <!-- ADD BUTTON -->
   <% if (canEdit) { %>
-  <td>
-    <form method="POST" action="/delete">
-      <input type="hidden" name="id" value="<%= e.id %>">
-      <button>Delete</button>
-    </form>
-  </td>
+    <button style="margin-top:10px;" onclick="document.getElementById('modal').style.display='block'">
+      + Add Entry
+    </button>
   <% } %>
-</tr>
-<% }) %>
 
-</table>
+  <!-- TABLE -->
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Steam ID</th>
+        <th>Reason</th>
+        <th>Status</th>
+        <% if (canEdit) { %>
+          <th>Action</th>
+        <% } %>
+      </tr>
+    </thead>
+
+    <tbody>
+      <% (data || []).forEach(entry => { %>
+        <tr>
+          <td><%= entry.name %></td>
+          <td><%= entry.steam_id %></td>
+          <td><%= entry.reason %></td>
+          <td><span class="badge">BANNED</span></td>
+
+          <% if (canEdit) { %>
+            <td>
+              <form method="POST" action="/delete">
+                <input type="hidden" name="id" value="<%= entry.id %>">
+                <button>Delete</button>
+              </form>
+            </td>
+          <% } %>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
 
 </div>
 
 <!-- ADD MODAL -->
-<div id="add" style="display:none; position:fixed; top:20%; left:35%; background:#111827; padding:20px;">
+<div id="modal" class="modal">
   <form method="POST" action="/add">
-    <input name="name" placeholder="Name"><br><br>
-    <input name="steam_id" placeholder="Steam ID"><br><br>
-    <input name="reason" placeholder="Reason"><br><br>
-    <button>Add</button>
+    <input name="name" placeholder="Name" required>
+    <input name="steam_id" placeholder="Steam ID">
+    <input name="reason" placeholder="Reason" required>
+
+    <button type="submit">Add</button>
+    <button type="button" onclick="document.getElementById('modal').style.display='none'">
+      Close
+    </button>
   </form>
 </div>
 
