@@ -12,7 +12,9 @@ const CALLBACK_URL = process.env.CALLBACK_URL;
 
 const GUILD_ID = process.env.GUILD_ID;
 const BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
+
 const MANAGEMENT_ROLE_ID = process.env.MANAGEMENT_ROLE_ID;
+const MANAGEMENT_ROLE_ID_2 = process.env.MANAGEMENT_ROLE_ID_2;
 
 // ================= MIDDLEWARE =================
 app.use(express.urlencoded({ extended: true }));
@@ -53,13 +55,16 @@ async function isManager(userId) {
     if (!res.ok) return false;
 
     const data = await res.json();
-    return data.roles?.includes(MANAGEMENT_ROLE_ID);
+
+    return (
+      data.roles?.includes(MANAGEMENT_ROLE_ID) ||
+      data.roles?.includes(MANAGEMENT_ROLE_ID_2)
+    );
   } catch (err) {
     console.error("Role check failed:", err);
     return false;
   }
 }
-
 // ================= LOGIN =================
 app.get("/login", (req, res) => {
   const params = new URLSearchParams({
