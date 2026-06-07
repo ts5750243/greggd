@@ -120,6 +120,8 @@ app.get("/logout", (req, res) => {
 
 // ================= MAIN PAGE =================
 app.get("/", async (req, res) => {
+  const search = req.query.search || ""; // ✅ FIX FOR YOUR ERROR
+
   db.all("SELECT * FROM blacklist ORDER BY id DESC", async (err, rows) => {
     if (err) {
       console.error(err);
@@ -141,6 +143,7 @@ app.get("/", async (req, res) => {
       user: req.session.user || null,
       data: rows || [],
       canEdit,
+      search, // ✅ FIX FOR EJS
     });
   });
 });
@@ -152,11 +155,13 @@ app.post("/add", async (req, res) => {
   if (!(await isManager(req.session.user.id)))
     return res.status(403).send("No permission");
 
-  const { name, steam_id, reason } = req.body;
-
   db.run(
     "INSERT INTO blacklist (name, steam_id, reason) VALUES (?, ?, ?)",
-    [name || "Unknown", steam_id || "-", reason || "-"],
+    [
+      req.body.name || "Unknown",
+      req.body.steam_id || "-",
+      req.body.reason || "-",
+    ],
     (err) => {
       if (err) {
         console.error(err);
