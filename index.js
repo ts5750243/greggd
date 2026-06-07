@@ -59,39 +59,48 @@ async function isManager(userId) {
   }
 }
 
-// ================= LOGIN =================
+// ================= 🔥 FIXED LOGIN (MATCHES YOUR WORKING LINK) =================
 app.get("/login", (req, res) => {
-  const url =
-    `https://discord.com/oauth2/authorize` +
-    `?client_id=${CLIENT_ID}` +
-    `&response_type=code` +
-    `&redirect_uri=${encodeURIComponent(CALLBACK_URL)}` +
-    `&scope=identify%20guilds.members.read`;
+  const params = new URLSearchParams({
+    client_id: CLIENT_ID,
+    response_type: "code",
+    redirect_uri: CALLBACK_URL,
+    scope: "identify guilds.members.read",
+  });
+
+  const url = `https://discord.com/oauth2/authorize?${params.toString()}`;
 
   res.redirect(url);
 });
 
-// ================= CALLBACK =================
+// ================= CALLBACK (STABLE FIX) =================
 app.get("/auth/discord/callback", async (req, res) => {
   const code = req.query.code;
-  if (!code) return res.send("No code received");
+  if (!code) return res.send("No code");
 
   try {
+    const body = new URLSearchParams({
+      client_id: CLIENT_ID,
+      client_secret: CLIENT_SECRET,
+      grant_type: "authorization_code",
+      code: code,
+      redirect_uri: CALLBACK_URL,
+    });
+
     const tokenRes = await fetch("https://discord.com/api/oauth2/token", {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
       },
-      body: new URLSearchParams({
-        client_id: CLIENT_ID,
-        client_secret: CLIENT_SECRET,
-        grant_type: "authorization_code",
-        code,
-        redirect_uri: CALLBACK_URL,
-      }),
+      body: body.toString(),
     });
 
     const token = await tokenRes.json();
+
+    if (!token.access_token) {
+      console.error("OAuth error:", token);
+      return res.send("OAuth failed");
+    }
 
     const userRes = await fetch("https://discord.com/api/users/@me", {
       headers: {
@@ -120,30 +129,22 @@ app.get("/logout", (req, res) => {
 
 // ================= MAIN PAGE =================
 app.get("/", async (req, res) => {
-  const search = req.query.search || ""; // ✅ FIX FOR YOUR ERROR
+  const search = req.query.search || "";
 
   db.all("SELECT * FROM blacklist ORDER BY id DESC", async (err, rows) => {
-    if (err) {
-      console.error(err);
-      return res.status(500).send("Database error");
-    }
+    if (err) return res.status(500).send("DB error");
 
     let canEdit = false;
 
-    try {
-      if (req.session?.user?.id) {
-        canEdit = await isManager(req.session.user.id);
-      }
-    } catch (e) {
-      console.error("Role check failed:", e);
-      canEdit = false;
+    if (req.session?.user?.id) {
+      canEdit = await isManager(req.session.user.id);
     }
 
     res.render("blacklist", {
       user: req.session.user || null,
       data: rows || [],
       canEdit,
-      search, // ✅ FIX FOR EJS
+      search,
     });
   });
 });
@@ -157,16 +158,9 @@ app.post("/add", async (req, res) => {
 
   db.run(
     "INSERT INTO blacklist (name, steam_id, reason) VALUES (?, ?, ?)",
-    [
-      req.body.name || "Unknown",
-      req.body.steam_id || "-",
-      req.body.reason || "-",
-    ],
+    [req.body.name, req.body.steam_id, req.body.reason],
     (err) => {
-      if (err) {
-        console.error(err);
-        return res.status(500).send("DB error");
-      }
+      if (err) return res.status(500).send("DB error");
       res.redirect("/");
     }
   );
@@ -179,11 +173,8 @@ app.post("/delete", async (req, res) => {
   if (!(await isManager(req.session.user.id)))
     return res.status(403).send("No permission");
 
-  db.run("DELETE FROM blacklist WHERE id=?", [req.body.id], (err) => {
-    if (err) {
-      console.error(err);
-      return res.status(500).send("DB error");
-    }
+  db.run("DELETE FROM blacklist WHERE id = ?", [req.body.id], (err) => {
+    if (err) return res.status(500).send("DB error");
     res.redirect("/");
   });
 });
