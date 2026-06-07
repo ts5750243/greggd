@@ -48,28 +48,6 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
-// Create tables on startup
-async function initDB() {
-  try {
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS blacklist (
-        id SERIAL PRIMARY KEY,
-        name TEXT,
-        steam_id TEXT,
-        steam_url TEXT,
-        note TEXT,
-        created_at TIMESTAMP DEFAULT NOW()
-      )
-    `);
-
-    console.log("✅ Database tables ready");
-  } catch (err) {
-    console.error("❌ DB init error:", err);
-  }
-}
-
-initDB();
-
 // ================= ROLE CHECK =================
 async function isManager(userId) {
   try {
