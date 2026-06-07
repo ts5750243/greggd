@@ -1,214 +1,133 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8">
-  <title>Blacklist</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blacklist</title>
 
-  <style>
-    body {
-      margin: 0;
-      font-family: Arial, sans-serif;
-      background: #0f1115;
-      color: #fff;
-    }
+<style>
+body { margin:0; font-family:Arial; background:#0b0f19; color:white; }
 
-    .topbar {
-      background: #161a22;
-      padding: 15px 25px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      border-bottom: 1px solid #2a2f3a;
-    }
+.header {
+  padding:15px;
+  background:#111827;
+  display:flex;
+  justify-content:space-between;
+}
 
-    .title {
-      font-size: 20px;
-      font-weight: bold;
-      letter-spacing: 1px;
-    }
+.container { padding:15px; }
 
-    .container {
-      padding: 25px;
-    }
+input {
+  padding:10px;
+  background:#1f2937;
+  border:none;
+  color:white;
+  border-radius:6px;
+}
 
-    .btn {
-      padding: 10px 15px;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-      font-weight: bold;
-    }
+button {
+  padding:10px;
+  border:none;
+  border-radius:6px;
+  background:#3b82f6;
+  color:white;
+  cursor:pointer;
+}
 
-    .btn-add {
-      background: #3b82f6;
-      color: white;
-    }
+table {
+  width:100%;
+  margin-top:15px;
+  border-collapse:collapse;
+}
 
-    .btn-delete {
-      background: #ef4444;
-      color: white;
-    }
+td, th {
+  padding:10px;
+  border-bottom:1px solid #1f2937;
+}
 
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 20px;
-      background: #161a22;
-      border-radius: 10px;
-      overflow: hidden;
-    }
+tr:hover { background:#111827; }
 
-    th, td {
-      padding: 14px;
-      text-align: left;
-      border-bottom: 1px solid #2a2f3a;
-    }
+.badge {
+  background:red;
+  padding:4px 8px;
+  border-radius:6px;
+  font-size:12px;
+}
 
-    th {
-      background: #1c2230;
-      color: #9ca3af;
-      font-size: 13px;
-      text-transform: uppercase;
-    }
+.flex { display:flex; gap:10px; flex-wrap:wrap; }
 
-    tr:hover {
-      background: #1a1f2a;
-    }
-
-    .badge {
-      padding: 5px 10px;
-      border-radius: 5px;
-      font-size: 12px;
-    }
-
-    .bad {
-      background: #ef4444;
-    }
-
-    .good {
-      background: #22c55e;
-    }
-
-    .header-right {
-      display: flex;
-      gap: 10px;
-      align-items: center;
-    }
-
-    a {
-      color: #60a5fa;
-      text-decoration: none;
-    }
-
-    .modal {
-      display: none;
-      position: fixed;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      background: rgba(0,0,0,0.7);
-      justify-content: center;
-      align-items: center;
-    }
-
-    .modal-content {
-      background: #161a22;
-      padding: 20px;
-      border-radius: 10px;
-      width: 300px;
-    }
-
-    input {
-      width: 100%;
-      padding: 8px;
-      margin: 5px 0;
-      background: #0f1115;
-      border: 1px solid #2a2f3a;
-      color: white;
-      border-radius: 5px;
-    }
-  </style>
+@media(max-width:600px){
+  table { font-size:12px; }
+}
+</style>
 </head>
 
 <body>
 
-<div class="topbar">
-  <div class="title">BLACKLIST</div>
+<div class="header">
+  <div><b>BLACKLIST PANEL</b></div>
 
-  <div class="header-right">
+  <div>
     <% if (user) { %>
-      <span><%= user.username %></span>
-      <a href="/logout">Logout</a>
+      <%= user.username %> | <a href="/logout">Logout</a>
     <% } else { %>
       <a href="/login">Login</a>
-    <% } %>
-
-    <% if (canEdit) { %>
-      <button class="btn btn-add" onclick="openModal()">+ Add</button>
     <% } %>
   </div>
 </div>
 
 <div class="container">
 
+<form method="GET" class="flex">
+  <input name="search" placeholder="Search..." value="<%= search %>">
+  <button>Search</button>
+</form>
+
+<% if (canEdit) { %>
+<button onclick="document.getElementById('add').style.display='block'">
+  + Add Entry
+</button>
+<% } %>
+
 <table>
-  <tr>
-    <th>Name</th>
-    <th>Steam ID</th>
-    <th>Reason</th>
-    <th>Status</th>
-    <% if (canEdit) { %>
-      <th>Action</th>
-    <% } %>
-  </tr>
+<tr>
+  <th>Name</th>
+  <th>Steam</th>
+  <th>Reason</th>
+  <th>Status</th>
+  <% if (canEdit) { %><th>Action</th><% } %>
+</tr>
 
-  <% active.forEach(entry => { %>
-    <tr>
-      <td><%= entry.name %></td>
-      <td><%= entry.steam_id %></td>
-      <td><%= entry.reason %></td>
-      <td><span class="badge bad">BLACKLISTED</span></td>
+<% data.forEach(e => { %>
+<tr>
+  <td><%= e.name %></td>
+  <td><%= e.steam_id %></td>
+  <td><%= e.reason %></td>
+  <td><span class="badge">BANNED</span></td>
 
-      <% if (canEdit) { %>
-        <td>
-          <form method="POST" action="/api/blacklist/delete">
-            <input type="hidden" name="id" value="<%= entry.id %>">
-            <button class="btn btn-delete">Delete</button>
-          </form>
-        </td>
-      <% } %>
-    </tr>
-  <% }) %>
+  <% if (canEdit) { %>
+  <td>
+    <form method="POST" action="/delete">
+      <input type="hidden" name="id" value="<%= e.id %>">
+      <button>Delete</button>
+    </form>
+  </td>
+  <% } %>
+</tr>
+<% }) %>
 
 </table>
 
 </div>
 
-<!-- MODAL -->
-<div class="modal" id="modal">
-  <div class="modal-content">
-    <h3>Add Entry</h3>
-
-    <form method="POST" action="/api/blacklist/add">
-      <input name="name" placeholder="Name" required />
-      <input name="steam_id" placeholder="Steam ID" />
-      <input name="reason" placeholder="Reason" required />
-      <button class="btn btn-add" type="submit">Add</button>
-    </form>
-
-    <br>
-    <button class="btn" onclick="closeModal()">Close</button>
-  </div>
+<!-- ADD MODAL -->
+<div id="add" style="display:none; position:fixed; top:20%; left:35%; background:#111827; padding:20px;">
+  <form method="POST" action="/add">
+    <input name="name" placeholder="Name"><br><br>
+    <input name="steam_id" placeholder="Steam ID"><br><br>
+    <input name="reason" placeholder="Reason"><br><br>
+    <button>Add</button>
+  </form>
 </div>
-
-<script>
-function openModal() {
-  document.getElementById("modal").style.display = "flex";
-}
-
-function closeModal() {
-  document.getElementById("modal").style.display = "none";
-}
-</script>
 
 </body>
 </html>
