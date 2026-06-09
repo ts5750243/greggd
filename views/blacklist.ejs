@@ -61,18 +61,21 @@
 
 <body>
 
-  <div class="topbar">
-    <h1>Blacklist</h1>
-
-    <div>
-      <% if (user) { %>
-        <span>Logged in as <%= user.username %></span>
-        <a href="/logout"><button>Logout</button></a>
-      <% } else { %>
-        <a href="/login"><button>Login</button></a>
-      <% } %>
-    </div>
+<div class="topbar">
+  <div style="display:flex; align-items:center; gap:10px;">
+    <img src="https://upload.wikimedia.org/wikipedia/en/thumb/2/24/Greggs_logo.svg/512px-Greggs_logo.svg.png" width="40">
+    <h1 style="margin:0;">Greggs Blacklist</h1>
   </div>
+
+  <div>
+    <% if (user) { %>
+      <span>Logged in as <%= user.username %></span>
+      <a href="/logout"><button>Logout</button></a>
+    <% } else { %>
+      <a href="/login"><button>Login</button></a>
+    <% } %>
+  </div>
+</div>
 
   <!-- SEARCH -->
   <form method="GET">
