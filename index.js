@@ -17,46 +17,47 @@ const {
   SESSION_SECRET
 } = process.env;
 
-// ================= FETCH FIX (IMPORTANT) =================
+// ================= FETCH =================
 const fetch = globalThis.fetch;
 
-// ================= BASIC CHECKS =================
-if (!DATABASE_URL) console.log("❌ Missing DATABASE_URL");
-if (!DISCORD_CLIENT_ID) console.log("❌ Missing DISCORD_CLIENT_ID");
-if (!DISCORD_CLIENT_SECRET) console.log("❌ Missing DISCORD_CLIENT_SECRET");
+// ================= SAFETY LOGS =================
+if (!DATABASE_URL) console.log("❌ DATABASE_URL missing");
+if (!DISCORD_BOT_TOKEN) console.log("❌ DISCORD_BOT_TOKEN missing");
+if (!CALLBACK_URL) console.log("❌ CALLBACK_URL missing");
 
 // ================= POSTGRES =================
 const pool = new Pool({
   connectionString: DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
+  ssl: DATABASE_URL ? { rejectUnauthorized: false } : false
 });
 
-// Create table
-pool.query(`
-CREATE TABLE IF NOT EXISTS blacklist (
-  id SERIAL PRIMARY KEY,
-  name TEXT,
-  steam_id TEXT,
-  reason TEXT,
-  discord_id TEXT
-)
-`).then(() => {
-  console.log("✅ Table ready");
-}).catch(err => {
-  console.error("❌ DB table error:", err);
-});
+// Create table safely
+(async () => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS blacklist (
+        id SERIAL PRIMARY KEY,
+        name TEXT,
+        steam_id TEXT,
+        reason TEXT,
+        discord_id TEXT
+      )
+    `);
 
-// Test DB
-pool.query("SELECT NOW()")
-  .then(() => console.log("✅ Postgres connected"))
-  .catch(err => console.error("❌ DB connection error:", err));
+    console.log("✅ DB table ready");
+    await pool.query("SELECT NOW()");
+    console.log("✅ Postgres connected");
+  } catch (err) {
+    console.error("❌ DB ERROR:", err);
+  }
+})();
 
 // ================= MIDDLEWARE =================
 app.use(express.urlencoded({ extended: true }));
 
 app.use(
   session({
-    secret: SESSION_SECRET || "secret",
+    secret: SESSION_SECRET || "fallback_secret",
     resave: false,
     saveUninitialized: false,
   })
@@ -67,6 +68,8 @@ app.set("view engine", "ejs");
 // ================= ROLE CHECK =================
 async function isManager(userId) {
   try {
+    if (!GUILD_ID || !DISCORD_BOT_TOKEN) return false;
+
     const res = await fetch(
       `https://discord.com/api/guilds/${GUILD_ID}/members/${userId}`,
       {
@@ -79,33 +82,39 @@ async function isManager(userId) {
     if (!res.ok) return false;
 
     const data = await res.json();
+    const roles = data.roles || [];
 
     return (
-      data.roles?.includes(MANAGEMENT_ROLE_ID) ||
-      data.roles?.includes(MANAGEMENT_ROLE_ID_2)
+      roles.includes(MANAGEMENT_ROLE_ID) ||
+      roles.includes(MANAGEMENT_ROLE_ID_2)
     );
   } catch (err) {
-    console.error("Role check error:", err);
+    console.error("isManager error:", err);
     return false;
   }
 }
 
 // ================= LOGIN =================
 app.get("/login", (req, res) => {
-  const params = new URLSearchParams({
-    client_id: DISCORD_CLIENT_ID,
-    response_type: "code",
-    redirect_uri: CALLBACK_URL,
-    scope: "identify guilds.members.read",
-  });
+  try {
+    const params = new URLSearchParams({
+      client_id: DISCORD_CLIENT_ID,
+      response_type: "code",
+      redirect_uri: CALLBACK_URL,
+      scope: "identify guilds.members.read",
+    });
 
-  res.redirect(`https://discord.com/oauth2/authorize?${params}`);
+    res.redirect(`https://discord.com/oauth2/authorize?${params}`);
+  } catch (err) {
+    console.error("LOGIN ERROR:", err);
+    res.status(500).send("Login error");
+  }
 });
 
 // ================= CALLBACK =================
 app.get("/auth/discord/callback", async (req, res) => {
   const code = req.query.code;
-  if (!code) return res.send("No code provided");
+  if (!code) return res.status(400).send("No code provided");
 
   try {
     const body = new URLSearchParams({
@@ -128,9 +137,10 @@ app.get("/auth/discord/callback", async (req, res) => {
     );
 
     const token = await tokenRes.json();
+
     if (!token.access_token) {
-      console.error(token);
-      return res.send("OAuth failed");
+      console.error("OAuth token error:", token);
+      return res.status(400).send("OAuth failed");
     }
 
     const userRes = await fetch("https://discord.com/api/users/@me", {
@@ -148,7 +158,7 @@ app.get("/auth/discord/callback", async (req, res) => {
 
     res.redirect("/");
   } catch (err) {
-    console.error("OAuth error:", err);
+    console.error("CALLBACK ERROR:", err);
     res.status(500).send("OAuth error");
   }
 });
@@ -160,24 +170,24 @@ app.get("/logout", (req, res) => {
 
 // ================= MAIN PAGE =================
 app.get("/", async (req, res) => {
-  const search = req.query.search || "";
-
-  let query = "SELECT * FROM blacklist";
-  let params = [];
-
-  if (search) {
-    query += `
-      WHERE name ILIKE $1
-      OR steam_id ILIKE $1
-      OR reason ILIKE $1
-      OR discord_id ILIKE $1
-    `;
-    params = [`%${search}%`];
-  }
-
-  query += " ORDER BY id DESC";
-
   try {
+    const search = req.query.search || "";
+
+    let query = "SELECT * FROM blacklist";
+    let params = [];
+
+    if (search) {
+      query += `
+        WHERE name ILIKE $1
+        OR steam_id ILIKE $1
+        OR reason ILIKE $1
+        OR discord_id ILIKE $1
+      `;
+      params = [`%${search}%`];
+    }
+
+    query += " ORDER BY id DESC";
+
     const result = await pool.query(query, params);
 
     let canEdit = false;
@@ -194,28 +204,28 @@ app.get("/", async (req, res) => {
     });
 
   } catch (err) {
-    console.error("Main page error:", err);
-    res.status(500).send("DB error");
+    console.error("MAIN PAGE ERROR:", err);
+    res.status(500).send("Internal Server Error");
   }
 });
 
 // ================= ADD =================
 app.post("/add", async (req, res) => {
-  if (!req.session?.user) return res.redirect("/login");
-
-  if (!(await isManager(req.session.user.id)))
-    return res.status(403).send("No permission");
-
-  const { name, steam_id, reason, discord_id } = req.body;
-
   try {
+    if (!req.session?.user) return res.redirect("/login");
+
+    if (!(await isManager(req.session.user.id)))
+      return res.status(403).send("No permission");
+
+    const { name, steam_id, reason, discord_id } = req.body;
+
     await pool.query(
       "INSERT INTO blacklist (name, steam_id, reason, discord_id) VALUES ($1,$2,$3,$4)",
       [name, steam_id, reason, discord_id]
     );
 
     // Discord ban
-    if (discord_id) {
+    if (discord_id && GUILD_ID) {
       await fetch(
         `https://discord.com/api/guilds/${GUILD_ID}/bans/${discord_id}`,
         {
@@ -231,19 +241,19 @@ app.post("/add", async (req, res) => {
 
     res.redirect("/");
   } catch (err) {
-    console.error("Add error:", err);
+    console.error("ADD ERROR:", err);
     res.status(500).send("DB error");
   }
 });
 
 // ================= DELETE =================
 app.post("/delete", async (req, res) => {
-  if (!req.session?.user) return res.redirect("/login");
-
-  if (!(await isManager(req.session.user.id)))
-    return res.status(403).send("No permission");
-
   try {
+    if (!req.session?.user) return res.redirect("/login");
+
+    if (!(await isManager(req.session.user.id)))
+      return res.status(403).send("No permission");
+
     const row = await pool.query(
       "SELECT discord_id FROM blacklist WHERE id=$1",
       [req.body.id]
@@ -265,7 +275,7 @@ app.post("/delete", async (req, res) => {
 
     res.redirect("/");
   } catch (err) {
-    console.error("Delete error:", err);
+    console.error("DELETE ERROR:", err);
     res.status(500).send("DB error");
   }
 });
