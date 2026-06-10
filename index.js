@@ -20,9 +20,9 @@ const {
 // ================= FETCH =================
 const fetch = globalThis.fetch;
 
-// ================= SAFETY LOGS =================
+// ================= BASIC CHECKS =================
+console.log("Starting bot...");
 if (!DATABASE_URL) console.log("❌ DATABASE_URL missing");
-if (!DISCORD_BOT_TOKEN) console.log("❌ DISCORD_BOT_TOKEN missing");
 if (!CALLBACK_URL) console.log("❌ CALLBACK_URL missing");
 
 // ================= POSTGRES =================
@@ -48,7 +48,7 @@ const pool = new Pool({
     await pool.query("SELECT NOW()");
     console.log("✅ Postgres connected");
   } catch (err) {
-    console.error("❌ DB ERROR:", err);
+    console.error("❌ DB INIT ERROR:", err);
   }
 })();
 
@@ -96,22 +96,17 @@ async function isManager(userId) {
 
 // ================= LOGIN =================
 app.get("/login", (req, res) => {
-  try {
-    const params = new URLSearchParams({
-      client_id: DISCORD_CLIENT_ID,
-      response_type: "code",
-      redirect_uri: CALLBACK_URL,
-      scope: "identify guilds.members.read",
-    });
+  const params = new URLSearchParams({
+    client_id: DISCORD_CLIENT_ID,
+    response_type: "code",
+    redirect_uri: CALLBACK_URL,
+    scope: "identify guilds.members.read",
+  });
 
-    res.redirect(`https://discord.com/oauth2/authorize?${params}`);
-  } catch (err) {
-    console.error("LOGIN ERROR:", err);
-    res.status(500).send("Login error");
-  }
+  res.redirect(`https://discord.com/oauth2/authorize?${params}`);
 });
 
-// ================= CALLBACK =================
+// ================= CALLBACK (FIXED + DEBUG) =================
 app.get("/auth/discord/callback", async (req, res) => {
   const code = req.query.code;
   if (!code) return res.status(400).send("No code provided");
@@ -138,9 +133,13 @@ app.get("/auth/discord/callback", async (req, res) => {
 
     const token = await tokenRes.json();
 
+    // 🔥 IMPORTANT DEBUG (THIS WILL SHOW REAL ERROR)
+    console.log("OAuth RESPONSE:", token);
+
     if (!token.access_token) {
-      console.error("OAuth token error:", token);
-      return res.status(400).send("OAuth failed");
+      return res.status(400).send(
+        "OAuth failed - check Railway logs for details"
+      );
     }
 
     const userRes = await fetch("https://discord.com/api/users/@me", {
@@ -224,7 +223,6 @@ app.post("/add", async (req, res) => {
       [name, steam_id, reason, discord_id]
     );
 
-    // Discord ban
     if (discord_id && GUILD_ID) {
       await fetch(
         `https://discord.com/api/guilds/${GUILD_ID}/bans/${discord_id}`,
