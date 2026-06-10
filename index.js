@@ -17,6 +17,14 @@ const {
   SESSION_SECRET
 } = process.env;
 
+// ================= FETCH FIX (IMPORTANT) =================
+const fetch = globalThis.fetch;
+
+// ================= BASIC CHECKS =================
+if (!DATABASE_URL) console.log("❌ Missing DATABASE_URL");
+if (!DISCORD_CLIENT_ID) console.log("❌ Missing DISCORD_CLIENT_ID");
+if (!DISCORD_CLIENT_SECRET) console.log("❌ Missing DISCORD_CLIENT_SECRET");
+
 // ================= POSTGRES =================
 const pool = new Pool({
   connectionString: DATABASE_URL,
@@ -32,12 +40,16 @@ CREATE TABLE IF NOT EXISTS blacklist (
   reason TEXT,
   discord_id TEXT
 )
-`).catch(console.error);
+`).then(() => {
+  console.log("✅ Table ready");
+}).catch(err => {
+  console.error("❌ DB table error:", err);
+});
 
 // Test DB
 pool.query("SELECT NOW()")
   .then(() => console.log("✅ Postgres connected"))
-  .catch(err => console.log("❌ DB error", err));
+  .catch(err => console.error("❌ DB connection error:", err));
 
 // ================= MIDDLEWARE =================
 app.use(express.urlencoded({ extended: true }));
@@ -73,7 +85,7 @@ async function isManager(userId) {
       data.roles?.includes(MANAGEMENT_ROLE_ID_2)
     );
   } catch (err) {
-    console.error(err);
+    console.error("Role check error:", err);
     return false;
   }
 }
@@ -93,7 +105,7 @@ app.get("/login", (req, res) => {
 // ================= CALLBACK =================
 app.get("/auth/discord/callback", async (req, res) => {
   const code = req.query.code;
-  if (!code) return res.send("No code");
+  if (!code) return res.send("No code provided");
 
   try {
     const body = new URLSearchParams({
@@ -116,7 +128,10 @@ app.get("/auth/discord/callback", async (req, res) => {
     );
 
     const token = await tokenRes.json();
-    if (!token.access_token) return res.send("OAuth failed");
+    if (!token.access_token) {
+      console.error(token);
+      return res.send("OAuth failed");
+    }
 
     const userRes = await fetch("https://discord.com/api/users/@me", {
       headers: {
@@ -133,7 +148,7 @@ app.get("/auth/discord/callback", async (req, res) => {
 
     res.redirect("/");
   } catch (err) {
-    console.error(err);
+    console.error("OAuth error:", err);
     res.status(500).send("OAuth error");
   }
 });
@@ -166,6 +181,7 @@ app.get("/", async (req, res) => {
     const result = await pool.query(query, params);
 
     let canEdit = false;
+
     if (req.session?.user?.id) {
       canEdit = await isManager(req.session.user.id);
     }
@@ -178,7 +194,7 @@ app.get("/", async (req, res) => {
     });
 
   } catch (err) {
-    console.error(err);
+    console.error("Main page error:", err);
     res.status(500).send("DB error");
   }
 });
@@ -215,7 +231,7 @@ app.post("/add", async (req, res) => {
 
     res.redirect("/");
   } catch (err) {
-    console.error(err);
+    console.error("Add error:", err);
     res.status(500).send("DB error");
   }
 });
@@ -249,13 +265,14 @@ app.post("/delete", async (req, res) => {
 
     res.redirect("/");
   } catch (err) {
-    console.error(err);
+    console.error("Delete error:", err);
     res.status(500).send("DB error");
   }
 });
 
 // ================= START =================
-const PORT = process.env.PORT || 8080;
-app.listen(PORT, () =>
-  console.log("Server running on port", PORT)
-);
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, "0.0.0.0", () => {
+  console.log("🚀 Server running on port", PORT);
+});
