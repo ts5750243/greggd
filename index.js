@@ -3,7 +3,7 @@ const session = require("express-session");
 const { Pool } = require("pg");
 
 const app = express();
- 
+
 // ================= ENV =================
 const {
   DISCORD_CLIENT_ID,
