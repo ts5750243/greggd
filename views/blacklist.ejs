@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -17,18 +18,31 @@
 
     .hero {
       text-align: center;
-      padding: 40px 20px;
+      padding: 50px 20px;
     }
 
     .logo {
-      width: 90px;
+      width: 110px;
       border-radius: 50%;
-      border: 2px solid #00ff88;
+      border: 3px solid #00ff88;
+      box-shadow: 0 0 25px #00ff88;
     }
 
     h1 {
-      color: #00ff88;
       font-family: 'Orbitron', sans-serif;
+      color: #00ff88;
+      margin-top: 10px;
+      font-size: 2.8rem;
+      text-shadow: 0 0 20px #00ff88;
+    }
+
+    .status {
+      display: inline-block;
+      margin-top: 10px;
+      padding: 8px 14px;
+      border: 1px solid #00ff88;
+      border-radius: 20px;
+      box-shadow: 0 0 12px #00ff88;
     }
 
     .container {
@@ -39,16 +53,16 @@
 
     .card {
       background: #0d0d0d;
-      padding: 20px;
-      border-radius: 10px;
-      margin-bottom: 20px;
       border: 1px solid #222;
+      padding: 18px;
+      border-radius: 12px;
+      margin-bottom: 18px;
     }
 
     input {
       width: 100%;
       padding: 10px;
-      margin: 5px 0;
+      margin: 6px 0;
       background: #111;
       border: 1px solid #333;
       color: white;
@@ -58,11 +72,17 @@
     .btn {
       background: #00ff88;
       color: black;
-      padding: 10px 15px;
+      padding: 10px 14px;
       border: none;
       border-radius: 6px;
       cursor: pointer;
       font-weight: bold;
+      transition: 0.2s;
+    }
+
+    .btn:hover {
+      transform: scale(1.05);
+      box-shadow: 0 0 15px #00ff88;
     }
 
     table {
@@ -83,6 +103,15 @@
     .steam-id { color: #f5b942; }
     .discord-id { color: #7289da; }
 
+    .fade-in {
+      animation: fadeIn 0.25s ease-in;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(5px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
     .topbar {
       display: flex;
       justify-content: space-between;
@@ -99,6 +128,7 @@
 <div class="hero">
   <img src="https://i.imgur.com/lhNa6cM.png" class="logo">
   <h1>Greggs Blacklist</h1>
+  <div class="status">🟢 Database Online</div>
 </div>
 
 <!-- TOPBAR -->
@@ -134,13 +164,11 @@
   <% if (canEdit) { %>
   <div class="card">
     <h3>Add Blacklist Entry</h3>
-
     <form method="POST" action="/add">
       <input name="name" placeholder="Name" required>
       <input name="steam_id" placeholder="Steam ID">
       <input name="reason" placeholder="Reason">
       <input name="discord_id" placeholder="Discord ID">
-
       <button class="btn">Add</button>
     </form>
   </div>
@@ -149,42 +177,75 @@
   <!-- TABLE -->
   <div class="card">
     <table>
-      <tr>
-        <th>Name</th>
-        <th>Steam ID</th>
-        <th>Reason</th>
-        <th>Discord ID</th>
-        <% if (canEdit) { %><th>Actions</th><% } %>
-      </tr>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Steam ID</th>
+          <th>Reason</th>
+          <th>Discord ID</th>
+          <% if (canEdit) { %><th>Action</th><% } %>
+        </tr>
+      </thead>
 
-      <% if (data && data.length > 0) { %>
-        <% data.forEach(item => { %>
-          <tr>
-            <td><%= item.name %></td>
-            <td class="steam-id"><%= item.steam_id %></td>
-            <td><%= item.reason %></td>
-            <td class="discord-id"><%= item.discord_id %></td>
+      <tbody id="table-body">
+        <% if (data && data.length) { %>
+          <% data.forEach(item => { %>
+            <tr class="fade-in">
+              <td><%= item.name %></td>
+              <td class="steam-id"><%= item.steam_id %></td>
+              <td><%= item.reason %></td>
+              <td class="discord-id"><%= item.discord_id %></td>
 
-            <% if (canEdit) { %>
+              <% if (canEdit) { %>
               <td>
                 <form method="POST" action="/delete">
                   <input type="hidden" name="id" value="<%= item.id %>">
                   <button class="btn">Remove</button>
                 </form>
               </td>
-            <% } %>
-          </tr>
-        <% }) %>
-      <% } else { %>
-        <tr>
-          <td colspan="5">No entries found</td>
-        </tr>
-      <% } %>
+              <% } %>
 
+            </tr>
+          <% }) %>
+        <% } else { %>
+          <tr>
+            <td colspan="5">No entries found</td>
+          </tr>
+        <% } %>
+      </tbody>
     </table>
   </div>
 
 </div>
+
+<!-- LIVE UPDATE -->
+<script>
+async function refreshTable() {
+  try {
+    const res = await fetch("/api/blacklist");
+    const data = await res.json();
+
+    const table = document.getElementById("table-body");
+    table.innerHTML = "";
+
+    data.forEach(item => {
+      table.innerHTML += `
+        <tr class="fade-in">
+          <td>${item.name}</td>
+          <td class="steam-id">${item.steam_id || ""}</td>
+          <td>${item.reason || ""}</td>
+          <td class="discord-id">${item.discord_id || ""}</td>
+        </tr>
+      `;
+    });
+
+  } catch (err) {
+    console.log("Live update failed", err);
+  }
+}
+
+setInterval(refreshTable, 5000);
+</script>
 
 </body>
 </html>
