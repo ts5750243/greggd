@@ -1,203 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
   <title>Greggs Blacklist</title>
-
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;800&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
 
   <style>
-    :root{
-      --bg:#050505;
-      --panel:#0d0d0d;
-      --green:#00ff88;
-      --green-dark:#00cc66;
-      --text:#ffffff;
-      --muted:#9ca3af;
+    body {
+      margin: 0;
+      font-family: 'Rajdhani', sans-serif;
+      background: #050505;
+      color: white;
     }
 
-    *{
-      margin:0;
-      padding:0;
-      box-sizing:border-box;
+    .hero {
+      text-align: center;
+      padding: 40px 20px;
     }
 
-    body{
-      background:#050505;
-      color:white;
-      font-family:'Rajdhani',sans-serif;
-      overflow-x:hidden;
-      min-height:100vh;
-      background-image:
-      linear-gradient(rgba(0,255,136,.04) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(0,255,136,.04) 1px, transparent 1px);
-      background-size:40px 40px;
+    .logo {
+      width: 90px;
+      border-radius: 50%;
+      border: 2px solid #00ff88;
     }
 
-    .hero{
-      text-align:center;
-      padding:80px 20px;
-      position:relative;
+    h1 {
+      color: #00ff88;
+      font-family: 'Orbitron', sans-serif;
     }
 
-    .hero::before{
-      content:"";
-      position:absolute;
-      width:500px;
-      height:500px;
-      background:radial-gradient(circle,var(--green) 0%,transparent 70%);
-      opacity:.08;
-      top:-150px;
-      left:50%;
-      transform:translateX(-50%);
-      filter:blur(80px);
+    .container {
+      width: 95%;
+      max-width: 1200px;
+      margin: auto;
     }
 
-    .logo{
-      width:120px;
-      height:120px;
-      border-radius:50%;
-      object-fit:cover;
-      border:3px solid var(--green);
-      box-shadow:0 0 30px var(--green);
-      margin-bottom:20px;
+    .card {
+      background: #0d0d0d;
+      padding: 20px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      border: 1px solid #222;
     }
 
-    h1{
-      font-family:'Orbitron',sans-serif;
-      font-size:4rem;
-      color:var(--green);
-      text-shadow:
-      0 0 10px var(--green),
-      0 0 20px var(--green),
-      0 0 40px var(--green);
+    input {
+      width: 100%;
+      padding: 10px;
+      margin: 5px 0;
+      background: #111;
+      border: 1px solid #333;
+      color: white;
+      border-radius: 6px;
     }
 
-    .subtitle{
-      margin-top:10px;
-      color:#cfcfcf;
-      font-size:1.2rem;
+    .btn {
+      background: #00ff88;
+      color: black;
+      padding: 10px 15px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
     }
 
-    .status{
-      display:inline-block;
-      margin-top:20px;
-      padding:10px 18px;
-      border-radius:999px;
-      background:#0f0f0f;
-      border:1px solid var(--green);
-      box-shadow:0 0 15px rgba(0,255,136,.4);
-      animation:pulse 2s infinite;
+    table {
+      width: 100%;
+      border-collapse: collapse;
     }
 
-    @keyframes pulse{
-      0%{box-shadow:0 0 5px rgba(0,255,136,.3);}
-      50%{box-shadow:0 0 25px rgba(0,255,136,.8);}
-      100%{box-shadow:0 0 5px rgba(0,255,136,.3);}
+    th, td {
+      padding: 10px;
+      border-bottom: 1px solid #222;
+      text-align: left;
     }
 
-    .container{
-      width:95%;
-      max-width:1400px;
-      margin:auto;
+    th {
+      color: #00ff88;
     }
 
-    .card{
-      background:rgba(15,15,15,.9);
-      border:1px solid rgba(0,255,136,.25);
-      border-radius:16px;
-      padding:20px;
-      margin-bottom:20px;
-      backdrop-filter:blur(8px);
-      box-shadow:0 0 20px rgba(0,255,136,.08);
-    }
+    .steam-id { color: #f5b942; }
+    .discord-id { color: #7289da; }
 
-    .search-box{
-      width:100%;
-      padding:14px;
-      background:#111;
-      border:1px solid #333;
-      color:white;
-      border-radius:10px;
-      font-size:1rem;
-    }
-
-    .search-box:focus{
-      outline:none;
-      border-color:var(--green);
-      box-shadow:0 0 15px rgba(0,255,136,.5);
-    }
-
-    .btn{
-      background:var(--green);
-      color:black;
-      border:none;
-      padding:12px 18px;
-      border-radius:10px;
-      font-weight:bold;
-      cursor:pointer;
-      transition:.25s;
-    }
-
-    .btn:hover{
-      transform:translateY(-2px);
-      box-shadow:0 0 20px var(--green);
-    }
-
-    table{
-      width:100%;
-      border-collapse:collapse;
-    }
-
-    th{
-      background:#0d0d0d;
-      color:var(--green);
-      font-family:'Orbitron';
-    }
-
-    th,td{
-      padding:14px;
-      border-bottom:1px solid #222;
-      text-align:left;
-    }
-
-    tr:hover{
-      background:#101010;
-    }
-
-    .discord-id{
-      color:#7289da;
-    }
-
-    .steam-id{
-      color:#f5b942;
-    }
-
-    footer{
-      text-align:center;
-      padding:30px;
-      color:#888;
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      padding: 15px;
+      background: #0d0d0d;
+      border-bottom: 1px solid #222;
     }
   </style>
 </head>
 
 <body>
 
+<!-- HERO -->
 <div class="hero">
-
-  <img src="https://imgur.com/lhNa6cM" class="logo">
-
+  <img src="https://i.imgur.com/lhNa6cM.png" class="logo">
   <h1>Greggs Blacklist</h1>
+</div>
 
-  <p class="subtitle">
-    Blacklist Management System
-  </p>
+<!-- TOPBAR -->
+<div class="topbar">
+  <div>
+    <% if (user) { %>
+      Logged in as <%= user.username %>
+    <% } else { %>
+      Not logged in
+    <% } %>
+  </div>
 
-  <div class="status">
-    🟢 Database Online
+  <div>
+    <% if (user) { %>
+      <a href="/logout"><button class="btn">Logout</button></a>
+    <% } else { %>
+      <a href="/login"><button class="btn">Login</button></a>
+    <% } %>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- SEARCH -->
+  <div class="card">
+    <form method="GET" action="/">
+      <input name="search" placeholder="Search blacklist..." value="<%= search || '' %>">
+      <button class="btn">Search</button>
+    </form>
+  </div>
+
+  <!-- ADD FORM -->
+  <% if (canEdit) { %>
+  <div class="card">
+    <h3>Add Blacklist Entry</h3>
+
+    <form method="POST" action="/add">
+      <input name="name" placeholder="Name" required>
+      <input name="steam_id" placeholder="Steam ID">
+      <input name="reason" placeholder="Reason">
+      <input name="discord_id" placeholder="Discord ID">
+
+      <button class="btn">Add</button>
+    </form>
+  </div>
+  <% } %>
+
+  <!-- TABLE -->
+  <div class="card">
+    <table>
+      <tr>
+        <th>Name</th>
+        <th>Steam ID</th>
+        <th>Reason</th>
+        <th>Discord ID</th>
+        <% if (canEdit) { %><th>Actions</th><% } %>
+      </tr>
+
+      <% if (data && data.length > 0) { %>
+        <% data.forEach(item => { %>
+          <tr>
+            <td><%= item.name %></td>
+            <td class="steam-id"><%= item.steam_id %></td>
+            <td><%= item.reason %></td>
+            <td class="discord-id"><%= item.discord_id %></td>
+
+            <% if (canEdit) { %>
+              <td>
+                <form method="POST" action="/delete">
+                  <input type="hidden" name="id" value="<%= item.id %>">
+                  <button class="btn">Remove</button>
+                </form>
+              </td>
+            <% } %>
+          </tr>
+        <% }) %>
+      <% } else { %>
+        <tr>
+          <td colspan="5">No entries found</td>
+        </tr>
+      <% } %>
+
+    </table>
   </div>
 
 </div>
+
+</body>
+</html>
