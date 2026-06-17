@@ -2,10 +2,10 @@ const express = require("express");
 const session = require("express-session");
 const { Pool } = require("pg");
 
-// fetch fallback (Railway safe)
-const fetch = global.fetch || require("node-fetch");
-
 const app = express();
+
+// ================= FETCH (Railway safe) =================
+const fetch = globalThis.fetch;
 
 // ================= ENV =================
 const {
@@ -20,13 +20,13 @@ const {
   SESSION_SECRET
 } = process.env;
 
-// ================= DATABASE =================
+// ================= DB =================
 const pool = new Pool({
   connectionString: DATABASE_URL,
   ssl: DATABASE_URL ? { rejectUnauthorized: false } : false
 });
 
-// Safe table creation
+// ================= CREATE TABLE =================
 pool.query(`
 CREATE TABLE IF NOT EXISTS blacklist (
   id SERIAL PRIMARY KEY,
@@ -42,13 +42,33 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use(
   session({
-    secret: SESSION_SECRET || "greggs_secret",
+    secret: SESSION_SECRET || "fallback_secret",
     resave: false,
     saveUninitialized: false,
   })
 );
 
 app.set("view engine", "ejs");
+
+// ================= DISCORD HELPER =================
+async function discordRequest(url, options) {
+  const res = await fetch(url, {
+    ...options,
+    headers: {
+      Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
+      "Content-Type": "application/json",
+      ...(options.headers || {})
+    }
+  });
+
+  const text = await res.text();
+
+  if (!res.ok) {
+    console.error("❌ Discord API ERROR:", res.status, text);
+  }
+
+  return res.ok;
+}
 
 // ================= ROLE CHECK =================
 async function isManager(userId) {
@@ -102,16 +122,23 @@ app.get("/auth/discord/callback", async (req, res) => {
       redirect_uri: CALLBACK_URL,
     });
 
-    const tokenRes = await fetch("https://discord.com/api/oauth2/token", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body,
-    });
+    const tokenRes = await fetch(
+      "https://discord.com/api/oauth2/token",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: body.toString(),
+      }
+    );
 
     const token = await tokenRes.json();
-    if (!token.access_token) return res.status(401).send("OAuth failed");
+
+    if (!token.access_token) {
+      console.error("OAuth failed:", token);
+      return res.status(400).send("OAuth failed");
+    }
 
     const userRes = await fetch("https://discord.com/api/users/@me", {
       headers: {
@@ -161,29 +188,27 @@ app.get("/", async (req, res) => {
     const result = await pool.query(query, params);
 
     let canEdit = false;
-
     if (req.session?.user?.id) {
       canEdit = await isManager(req.session.user.id);
     }
 
     res.render("blacklist", {
       user: req.session.user || null,
-      data: result.rows || [],
+      data: result.rows,
       canEdit,
       search
     });
 
   } catch (err) {
-    console.error("Main page error:", err);
+    console.error("MAIN ERROR:", err);
     res.status(500).send("Server error");
   }
 });
 
-// ================= ADD =================
+// ================= ADD + AUTO BAN =================
 app.post("/add", async (req, res) => {
   try {
     if (!req.session?.user) return res.redirect("/login");
-
     if (!(await isManager(req.session.user.id)))
       return res.status(403).send("No permission");
 
@@ -194,6 +219,19 @@ app.post("/add", async (req, res) => {
       [name, steam_id, reason, discord_id]
     );
 
+    // AUTO BAN
+    if (discord_id) {
+      await discordRequest(
+        `https://discord.com/api/guilds/${GUILD_ID}/bans/${discord_id}`,
+        {
+          method: "PUT",
+          body: JSON.stringify({
+            reason: reason || "Blacklisted"
+          })
+        }
+      );
+    }
+
     res.redirect("/");
   } catch (err) {
     console.error("ADD ERROR:", err);
@@ -201,15 +239,31 @@ app.post("/add", async (req, res) => {
   }
 });
 
-// ================= DELETE =================
+// ================= DELETE + AUTO UNBAN =================
 app.post("/delete", async (req, res) => {
   try {
     if (!req.session?.user) return res.redirect("/login");
-
     if (!(await isManager(req.session.user.id)))
       return res.status(403).send("No permission");
 
+    const row = await pool.query(
+      "SELECT discord_id FROM blacklist WHERE id=$1",
+      [req.body.id]
+    );
+
+    const discordId = row.rows[0]?.discord_id;
+
     await pool.query("DELETE FROM blacklist WHERE id=$1", [req.body.id]);
+
+    // AUTO UNBAN
+    if (discordId) {
+      await discordRequest(
+        `https://discord.com/api/guilds/${GUILD_ID}/bans/${discordId}`,
+        {
+          method: "DELETE"
+        }
+      );
+    }
 
     res.redirect("/");
   } catch (err) {
@@ -218,33 +272,9 @@ app.post("/delete", async (req, res) => {
   }
 });
 
-// ================= EDIT =================
-app.post("/edit", async (req, res) => {
-  try {
-    if (!req.session?.user) return res.redirect("/login");
-
-    if (!(await isManager(req.session.user.id)))
-      return res.status(403).send("No permission");
-
-    const { id, name, steam_id, reason, discord_id } = req.body;
-
-    await pool.query(
-      `UPDATE blacklist
-       SET name=$1, steam_id=$2, reason=$3, discord_id=$4
-       WHERE id=$5`,
-      [name, steam_id, reason, discord_id, id]
-    );
-
-    res.redirect("/");
-  } catch (err) {
-    console.error("EDIT ERROR:", err);
-    res.status(500).send("DB error");
-  }
-});
-
 // ================= START =================
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, () => {
-  console.log("Greggs Blacklist running on port", PORT);
+app.listen(PORT, "0.0.0.0", () => {
+  console.log("🚀 Greggs Blacklist running on port", PORT);
 });
