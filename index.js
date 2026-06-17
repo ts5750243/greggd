@@ -1,164 +1,179 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <title>Greggs Blacklist</title>
+const express = require("express");
+const session = require("express-session");
+const { Pool } = require("pg");
 
-  <style>
-    body {
-      background: #0b0b0b;
-      color: white;
-      font-family: Arial;
-      margin: 0;
-    }
+// Railway-safe fetch
+const fetch = global.fetch || require("node-fetch");
 
-    .top {
-      padding: 20px;
-      text-align: center;
-      border-bottom: 1px solid #222;
-    }
+const app = express();
 
-    .logo {
-      width: 80px;
-      border-radius: 50%;
-    }
+/* ================= CORE FIX (EJS) ================= */
+app.set("view engine", "ejs");
+app.set("views", "./views");
 
-    h1 {
-      color: #00ff88;
-    }
+/* ================= MIDDLEWARE ================= */
+app.use(express.urlencoded({ extended: true }));
+app.use(express.static("public"));
 
-    .container {
-      width: 90%;
-      margin: auto;
-    }
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || "greggs_secret",
+    resave: false,
+    saveUninitialized: false,
+  })
+);
 
-    input {
-      padding: 8px;
-      margin: 4px;
-      width: 200px;
-    }
+/* ================= DATABASE ================= */
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_URL
+    ? { rejectUnauthorized: false }
+    : false,
+});
 
-    .btn {
-      background: #00ff88;
-      border: none;
-      padding: 6px 10px;
-      cursor: pointer;
-    }
+/* ================= CREATE TABLE ================= */
+pool.query(`
+CREATE TABLE IF NOT EXISTS blacklist (
+  id SERIAL PRIMARY KEY,
+  name TEXT,
+  steam_id TEXT,
+  reason TEXT,
+  discord_id TEXT
+)
+`).catch(console.error);
 
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 20px;
-    }
+/* ================= ROLE CHECK ================= */
+async function isManager(userId) {
+  try {
+    const res = await fetch(
+      `https://discord.com/api/guilds/${process.env.GUILD_ID}/members/${userId}`,
+      {
+        headers: {
+          Authorization: `Bot ${process.env.DISCORD_BOT_TOKEN}`,
+        },
+      }
+    );
 
-    th, td {
-      border-bottom: 1px solid #222;
-      padding: 10px;
-    }
+    if (!res.ok) return false;
 
-    th {
-      color: #00ff88;
-    }
+    const data = await res.json();
 
-    #editBox {
-      display: none;
-      position: fixed;
-      top: 30%;
-      left: 50%;
-      transform: translateX(-50%);
-      background: #111;
-      padding: 20px;
-      border: 1px solid #333;
-    }
-  </style>
-</head>
-
-<body>
-
-<div class="top">
-  <img src="https://i.imgur.com/lhNa6cM.png" class="logo">
-  <h1>Greggs Blacklist</h1>
-  <p>Database System</p>
-</div>
-
-<div class="container">
-
-  <!-- SEARCH -->
-  <form method="GET" action="/">
-    <input name="search" placeholder="Search..." value="<%= search || '' %>">
-    <button class="btn">Search</button>
-  </form>
-
-  <!-- ADD -->
-  <% if (canEdit) { %>
-  <form method="POST" action="/add">
-    <input name="name" placeholder="Name">
-    <input name="steam_id" placeholder="Steam ID">
-    <input name="reason" placeholder="Reason">
-    <input name="discord_id" placeholder="Discord ID">
-    <button class="btn">Add</button>
-  </form>
-  <% } %>
-
-  <!-- TABLE -->
-  <table>
-    <tr>
-      <th>Name</th>
-      <th>Steam</th>
-      <th>Reason</th>
-      <th>Discord</th>
-      <% if (canEdit) { %><th>Actions</th><% } %>
-    </tr>
-
-    <% data.forEach(item => { %>
-    <tr>
-      <td><%= item.name %></td>
-      <td><%= item.steam_id %></td>
-      <td><%= item.reason %></td>
-      <td><%= item.discord_id %></td>
-
-      <% if (canEdit) { %>
-      <td>
-        <button class="btn" onclick="openEdit(
-          '<%= item.id %>',
-          '<%= item.name %>',
-          '<%= item.steam_id %>',
-          '<%= item.reason %>',
-          '<%= item.discord_id %>'
-        )">Edit</button>
-
-        <form method="POST" action="/delete" style="display:inline;">
-          <input type="hidden" name="id" value="<%= item.id %>">
-          <button class="btn">Remove</button>
-        </form>
-      </td>
-      <% } %>
-    </tr>
-    <% }) %>
-  </table>
-</div>
-
-<!-- EDIT -->
-<div id="editBox">
-  <form method="POST" action="/edit">
-    <input type="hidden" id="eid" name="id">
-    <input id="ename" name="name">
-    <input id="esteam" name="steam_id">
-    <input id="ereason" name="reason">
-    <input id="ediscord" name="discord_id">
-    <button class="btn">Save</button>
-  </form>
-</div>
-
-<script>
-function openEdit(id, name, steam, reason, discord) {
-  document.getElementById("eid").value = id;
-  document.getElementById("ename").value = name;
-  document.getElementById("esteam").value = steam;
-  document.getElementById("ereason").value = reason;
-  document.getElementById("ediscord").value = discord;
-  document.getElementById("editBox").style.display = "block";
+    return (
+      data.roles?.includes(process.env.MANAGEMENT_ROLE_ID) ||
+      data.roles?.includes(process.env.MANAGEMENT_ROLE_ID_2)
+    );
+  } catch (err) {
+    console.error("Role check error:", err);
+    return false;
+  }
 }
-</script>
 
-</body>
-</html>
+/* ================= MAIN PAGE ================= */
+app.get("/", async (req, res) => {
+  try {
+    const search = req.query.search || "";
+
+    let query = "SELECT * FROM blacklist";
+    let params = [];
+
+    if (search) {
+      query += `
+        WHERE name ILIKE $1
+        OR steam_id ILIKE $1
+        OR reason ILIKE $1
+        OR discord_id ILIKE $1
+      `;
+      params = [`%${search}%`];
+    }
+
+    query += " ORDER BY id DESC";
+
+    const result = await pool.query(query, params);
+
+    let canEdit = false;
+
+    if (req.session?.user?.id) {
+      canEdit = await isManager(req.session.user.id);
+    }
+
+    res.render("blacklist", {
+      user: req.session.user || null,
+      data: result.rows,
+      canEdit,
+      search,
+    });
+  } catch (err) {
+    console.error("MAIN ERROR:", err);
+    res.status(500).send("Server error");
+  }
+});
+
+/* ================= ADD ================= */
+app.post("/add", async (req, res) => {
+  try {
+    if (!req.session?.user) return res.redirect("/login");
+
+    if (!(await isManager(req.session.user.id)))
+      return res.status(403).send("No permission");
+
+    const { name, steam_id, reason, discord_id } = req.body;
+
+    await pool.query(
+      "INSERT INTO blacklist (name, steam_id, reason, discord_id) VALUES ($1,$2,$3,$4)",
+      [name, steam_id, reason, discord_id]
+    );
+
+    res.redirect("/");
+  } catch (err) {
+    console.error("ADD ERROR:", err);
+    res.status(500).send("DB error");
+  }
+});
+
+/* ================= DELETE ================= */
+app.post("/delete", async (req, res) => {
+  try {
+    if (!req.session?.user) return res.redirect("/login");
+
+    if (!(await isManager(req.session.user.id)))
+      return res.status(403).send("No permission");
+
+    await pool.query("DELETE FROM blacklist WHERE id=$1", [req.body.id]);
+
+    res.redirect("/");
+  } catch (err) {
+    console.error("DELETE ERROR:", err);
+    res.status(500).send("DB error");
+  }
+});
+
+/* ================= EDIT ================= */
+app.post("/edit", async (req, res) => {
+  try {
+    if (!req.session?.user) return res.redirect("/login");
+
+    if (!(await isManager(req.session.user.id)))
+      return res.status(403).send("No permission");
+
+    const { id, name, steam_id, reason, discord_id } = req.body;
+
+    await pool.query(
+      `UPDATE blacklist
+       SET name=$1, steam_id=$2, reason=$3, discord_id=$4
+       WHERE id=$5`,
+      [name, steam_id, reason, discord_id, id]
+    );
+
+    res.redirect("/");
+  } catch (err) {
+    console.error("EDIT ERROR:", err);
+    res.status(500).send("DB error");
+  }
+});
+
+/* ================= START SERVER ================= */
+const PORT = process.env.PORT || 8080;
+
+app.listen(PORT, () => {
+  console.log("Greggs Blacklist running on port", PORT);
+});
