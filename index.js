@@ -256,21 +256,20 @@ app.post("/delete", async (req, res) => {
     await pool.query("DELETE FROM blacklist WHERE id=$1", [req.body.id]);
 
     // AUTO UNBAN
-    if (discordId) {
-      await discordRequest(
-        `https://discord.com/api/guilds/${GUILD_ID}/bans/${discordId}`,
-        {
-          method: "DELETE"
-        }
-      );
+   if (discordId) {
+  const ok = await discordRequest(
+    `https://discord.com/api/guilds/${GUILD_ID}/bans/${discordId}`,
+    {
+      method: "DELETE"
     }
+  );
 
-    res.redirect("/");
-  } catch (err) {
-    console.error("DELETE ERROR:", err);
-    res.status(500).send("DB error");
+  if (!ok) {
+    console.log("❌ Unban failed for:", discordId);
+  } else {
+    console.log("✅ Unbanned:", discordId);
   }
-});
+}
 
 // ================= START =================
 const PORT = process.env.PORT || 3000;
