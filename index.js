@@ -1,7 +1,9 @@
 const express = require("express");
 const session = require("express-session");
 const { Pool } = require("pg");
-const fetch = global.fetch || require("node-fetch"); // safe fallback
+
+// fetch fallback (Railway safe)
+const fetch = global.fetch || require("node-fetch");
 
 const app = express();
 
@@ -18,13 +20,13 @@ const {
   SESSION_SECRET
 } = process.env;
 
-// ================= POSTGRES =================
+// ================= DATABASE =================
 const pool = new Pool({
   connectionString: DATABASE_URL,
   ssl: DATABASE_URL ? { rejectUnauthorized: false } : false
 });
 
-// Create tables safely
+// Safe table creation
 pool.query(`
 CREATE TABLE IF NOT EXISTS blacklist (
   id SERIAL PRIMARY KEY,
@@ -35,22 +37,12 @@ CREATE TABLE IF NOT EXISTS blacklist (
 )
 `).catch(console.error);
 
-pool.query(`
-CREATE TABLE IF NOT EXISTS audit_logs (
-  id SERIAL PRIMARY KEY,
-  action TEXT,
-  actor TEXT,
-  target TEXT,
-  timestamp TIMESTAMP DEFAULT NOW()
-)
-`).catch(console.error);
-
 // ================= MIDDLEWARE =================
 app.use(express.urlencoded({ extended: true }));
 
 app.use(
   session({
-    secret: SESSION_SECRET || "dev_secret",
+    secret: SESSION_SECRET || "greggs_secret",
     resave: false,
     saveUninitialized: false,
   })
@@ -81,18 +73,6 @@ async function isManager(userId) {
   } catch (err) {
     console.error("Role check error:", err);
     return false;
-  }
-}
-
-// ================= LOG ACTION =================
-async function logAction(action, actor, target) {
-  try {
-    await pool.query(
-      "INSERT INTO audit_logs (action, actor, target) VALUES ($1,$2,$3)",
-      [action, actor, target]
-    );
-  } catch (err) {
-    console.error("Audit log error:", err);
   }
 }
 
@@ -181,6 +161,7 @@ app.get("/", async (req, res) => {
     const result = await pool.query(query, params);
 
     let canEdit = false;
+
     if (req.session?.user?.id) {
       canEdit = await isManager(req.session.user.id);
     }
@@ -202,6 +183,7 @@ app.get("/", async (req, res) => {
 app.post("/add", async (req, res) => {
   try {
     if (!req.session?.user) return res.redirect("/login");
+
     if (!(await isManager(req.session.user.id)))
       return res.status(403).send("No permission");
 
@@ -212,11 +194,9 @@ app.post("/add", async (req, res) => {
       [name, steam_id, reason, discord_id]
     );
 
-    await logAction("ADD", req.session.user.username, name);
-
     res.redirect("/");
   } catch (err) {
-    console.error("Add error:", err);
+    console.error("ADD ERROR:", err);
     res.status(500).send("DB error");
   }
 });
@@ -225,23 +205,15 @@ app.post("/add", async (req, res) => {
 app.post("/delete", async (req, res) => {
   try {
     if (!req.session?.user) return res.redirect("/login");
+
     if (!(await isManager(req.session.user.id)))
       return res.status(403).send("No permission");
 
-    const row = await pool.query(
-      "SELECT * FROM blacklist WHERE id=$1",
-      [req.body.id]
-    );
-
-    const target = row.rows[0];
-
     await pool.query("DELETE FROM blacklist WHERE id=$1", [req.body.id]);
-
-    await logAction("DELETE", req.session.user.username, target?.name);
 
     res.redirect("/");
   } catch (err) {
-    console.error("Delete error:", err);
+    console.error("DELETE ERROR:", err);
     res.status(500).send("DB error");
   }
 });
@@ -250,6 +222,7 @@ app.post("/delete", async (req, res) => {
 app.post("/edit", async (req, res) => {
   try {
     if (!req.session?.user) return res.redirect("/login");
+
     if (!(await isManager(req.session.user.id)))
       return res.status(403).send("No permission");
 
@@ -262,28 +235,16 @@ app.post("/edit", async (req, res) => {
       [name, steam_id, reason, discord_id, id]
     );
 
-    await logAction("EDIT", req.session.user.username, name);
-
     res.redirect("/");
   } catch (err) {
-    console.error("Edit error:", err);
+    console.error("EDIT ERROR:", err);
     res.status(500).send("DB error");
-  }
-});
-
-// ================= API (LIVE UPDATES) =================
-app.get("/api/blacklist", async (req, res) => {
-  try {
-    const result = await pool.query("SELECT * FROM blacklist ORDER BY id DESC");
-    res.json(result.rows || []);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json([]);
   }
 });
 
 // ================= START =================
 const PORT = process.env.PORT || 8080;
+
 app.listen(PORT, () => {
-  console.log("🚀 Greggs Blacklist running on port", PORT);
+  console.log("Greggs Blacklist running on port", PORT);
 });
