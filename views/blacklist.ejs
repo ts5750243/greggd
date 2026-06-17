@@ -1,121 +1,232 @@
-<style>
-  body {
-    margin: 0;
-    font-family: 'Rajdhani', sans-serif;
-    background: #050505;
-    color: white;
-  }
+<!DOCTYPE html>
+<html lang="en">
 
-  .hero {
-    text-align: center;
-    padding: 35px 20px;
-  }
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Greggs Blacklist</title>
 
-  .logo {
-    width: 70px;          /* FIXED (was too big) */
-    height: 70px;
-    border-radius: 50%;
-    border: 2px solid #00ff88;
-    box-shadow: 0 0 12px #00ff88;
-    object-fit: cover;
-  }
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;800&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-  h1 {
-    font-family: 'Orbitron', sans-serif;
-    color: #00ff88;
-    font-size: 2.2rem;
-    margin-top: 10px;
-  }
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Rajdhani', sans-serif;
+      background: #050505;
+      color: white;
+    }
 
-  .status {
-    display: inline-block;
-    margin-top: 8px;
-    padding: 6px 12px;
-    border: 1px solid #00ff88;
-    border-radius: 20px;
-    font-size: 0.85rem;
-  }
+    /* HERO */
+    .hero {
+      text-align: center;
+      padding: 30px 20px;
+    }
 
-  .container {
-    width: 95%;
-    max-width: 1100px;
-    margin: auto;
-  }
+    .logo {
+      width: 70px;
+      height: 70px;
+      border-radius: 50%;
+      border: 2px solid #00ff88;
+      box-shadow: 0 0 10px #00ff88;
+      object-fit: cover;
+    }
 
-  .card {
-    background: #0d0d0d;
-    border: 1px solid #222;
-    padding: 14px;
-    border-radius: 10px;
-    margin-bottom: 14px;
-  }
+    h1 {
+      font-family: 'Orbitron', sans-serif;
+      color: #00ff88;
+      font-size: 2.2rem;
+      margin-top: 10px;
+    }
 
-  /* FIXED INPUT LAYOUT */
-  input {
-    width: 100%;
-    padding: 9px;
-    margin: 5px 0;
-    background: #111;
-    border: 1px solid #333;
-    color: white;
-    border-radius: 6px;
-    font-size: 0.95rem;
-  }
+    .status {
+      display: inline-block;
+      margin-top: 6px;
+      padding: 6px 12px;
+      border: 1px solid #00ff88;
+      border-radius: 20px;
+      font-size: 0.85rem;
+    }
 
-  .btn {
-    background: #00ff88;
-    color: black;
-    padding: 9px 12px;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    font-weight: bold;
-    font-size: 0.9rem;
-  }
+    /* TOPBAR */
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: #0d0d0d;
+      border-bottom: 1px solid #222;
+      font-size: 0.9rem;
+    }
 
-  .btn:hover {
-    box-shadow: 0 0 10px #00ff88;
-  }
+    /* CONTAINER */
+    .container {
+      width: 95%;
+      max-width: 1100px;
+      margin: auto;
+    }
 
-  /* FIXED TABLE */
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.95rem;
-  }
+    /* CARDS */
+    .card {
+      background: #0d0d0d;
+      border: 1px solid #222;
+      padding: 14px;
+      border-radius: 10px;
+      margin-bottom: 14px;
+    }
 
-  th, td {
-    padding: 10px;
-    border-bottom: 1px solid #222;
-  }
+    /* INPUTS */
+    input {
+      width: 100%;
+      padding: 9px;
+      margin: 5px 0;
+      background: #111;
+      border: 1px solid #333;
+      color: white;
+      border-radius: 6px;
+      font-size: 0.95rem;
+    }
 
-  th {
-    color: #00ff88;
-    text-align: left;
-    font-size: 0.85rem;
-    letter-spacing: 0.5px;
-  }
+    /* BUTTON */
+    .btn {
+      background: #00ff88;
+      color: black;
+      padding: 9px 12px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 0.9rem;
+    }
 
-  tr:hover {
-    background: #111;
-  }
+    .btn:hover {
+      box-shadow: 0 0 10px #00ff88;
+    }
 
-  .steam-id { color: #f5b942; }
-  .discord-id { color: #7289da; }
+    /* TABLE */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.95rem;
+    }
 
-  /* FIXED ADD FORM LAYOUT */
-  form {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
+    th, td {
+      padding: 10px;
+      border-bottom: 1px solid #222;
+      text-align: left;
+    }
 
-  .topbar {
-    display: flex;
-    justify-content: space-between;
-    padding: 12px;
-    background: #0d0d0d;
-    border-bottom: 1px solid #222;
-    font-size: 0.9rem;
-  }
-</style>
+    th {
+      color: #00ff88;
+      font-size: 0.85rem;
+      letter-spacing: 0.5px;
+    }
+
+    tr:hover {
+      background: #111;
+    }
+
+    .steam-id { color: #f5b942; }
+    .discord-id { color: #7289da; }
+
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+  </style>
+</head>
+
+<body>
+
+<!-- HERO -->
+<div class="hero">
+  <img src="https://i.imgur.com/lhNa6cM.png" class="logo">
+  <h1>Greggs Blacklist</h1>
+  <div class="status">🟢 Database Online</div>
+</div>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div>
+    <% if (user) { %>
+      Logged in as <%= user.username %>
+    <% } else { %>
+      Not logged in
+    <% } %>
+  </div>
+
+  <div>
+    <% if (user) { %>
+      <a href="/logout"><button class="btn">Logout</button></a>
+    <% } else { %>
+      <a href="/login"><button class="btn">Login</button></a>
+    <% } %>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- SEARCH -->
+  <div class="card">
+    <form method="GET" action="/">
+      <input name="search" placeholder="Search blacklist..." value="<%= search || '' %>">
+      <button class="btn">Search</button>
+    </form>
+  </div>
+
+  <!-- ADD FORM -->
+  <% if (canEdit) { %>
+  <div class="card">
+    <h3>Add Entry</h3>
+
+    <form method="POST" action="/add">
+      <input name="name" placeholder="Name" required>
+      <input name="steam_id" placeholder="Steam ID">
+      <input name="reason" placeholder="Reason">
+      <input name="discord_id" placeholder="Discord ID">
+      <button class="btn">Add</button>
+    </form>
+  </div>
+  <% } %>
+
+  <!-- TABLE -->
+  <div class="card">
+    <table>
+      <tr>
+        <th>Name</th>
+        <th>Steam ID</th>
+        <th>Reason</th>
+        <th>Discord ID</th>
+        <% if (canEdit) { %><th>Action</th><% } %>
+      </tr>
+
+      <% if (data && data.length) { %>
+        <% data.forEach(item => { %>
+          <tr>
+            <td><%= item.name %></td>
+            <td class="steam-id"><%= item.steam_id %></td>
+            <td><%= item.reason %></td>
+            <td class="discord-id"><%= item.discord_id %></td>
+
+            <% if (canEdit) { %>
+            <td>
+              <form method="POST" action="/delete">
+                <input type="hidden" name="id" value="<%= item.id %>">
+                <button class="btn">Remove</button>
+              </form>
+            </td>
+            <% } %>
+          </tr>
+        <% }) %>
+      <% } else { %>
+        <tr>
+          <td colspan="5">No entries found</td>
+        </tr>
+      <% } %>
+
+    </table>
+  </div>
+
+</div>
+
+</body>
+</html>
