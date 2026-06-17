@@ -2,12 +2,17 @@ const express = require("express");
 const session = require("express-session");
 const { Pool } = require("pg");
 
-// fetch fallback (Railway safe)
+// Safe fetch (Railway compatible)
 const fetch = global.fetch || require("node-fetch");
 
 const app = express();
 
-// ================= ENV =================
+/* ================= IMPORTANT FIX (EJS RENDERING) ================= */
+app.set("view engine", "ejs");
+app.set("views", "./views");
+app.use(express.static("public"));
+
+/* ================= ENV ================= */
 const {
   DISCORD_CLIENT_ID,
   DISCORD_CLIENT_SECRET,
@@ -20,24 +25,7 @@ const {
   SESSION_SECRET
 } = process.env;
 
-// ================= DATABASE =================
-const pool = new Pool({
-  connectionString: DATABASE_URL,
-  ssl: DATABASE_URL ? { rejectUnauthorized: false } : false
-});
-
-// Safe table creation
-pool.query(`
-CREATE TABLE IF NOT EXISTS blacklist (
-  id SERIAL PRIMARY KEY,
-  name TEXT,
-  steam_id TEXT,
-  reason TEXT,
-  discord_id TEXT
-)
-`).catch(console.error);
-
-// ================= MIDDLEWARE =================
+/* ================= MIDDLEWARE ================= */
 app.use(express.urlencoded({ extended: true }));
 
 app.use(
@@ -48,9 +36,23 @@ app.use(
   })
 );
 
-app.set("view engine", "ejs");
+/* ================= DATABASE ================= */
+const pool = new Pool({
+  connectionString: DATABASE_URL,
+  ssl: DATABASE_URL ? { rejectUnauthorized: false } : false
+});
 
-// ================= ROLE CHECK =================
+pool.query(`
+CREATE TABLE IF NOT EXISTS blacklist (
+  id SERIAL PRIMARY KEY,
+  name TEXT,
+  steam_id TEXT,
+  reason TEXT,
+  discord_id TEXT
+)
+`).catch(console.error);
+
+/* ================= ROLE CHECK ================= */
 async function isManager(userId) {
   try {
     const res = await fetch(
@@ -76,7 +78,7 @@ async function isManager(userId) {
   }
 }
 
-// ================= LOGIN =================
+/* ================= LOGIN ================= */
 app.get("/login", (req, res) => {
   const params = new URLSearchParams({
     client_id: DISCORD_CLIENT_ID,
@@ -88,7 +90,7 @@ app.get("/login", (req, res) => {
   res.redirect(`https://discord.com/oauth2/authorize?${params}`);
 });
 
-// ================= CALLBACK =================
+/* ================= CALLBACK ================= */
 app.get("/auth/discord/callback", async (req, res) => {
   const code = req.query.code;
   if (!code) return res.status(400).send("No code");
@@ -104,9 +106,7 @@ app.get("/auth/discord/callback", async (req, res) => {
 
     const tokenRes = await fetch("https://discord.com/api/oauth2/token", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body,
     });
 
@@ -133,12 +133,12 @@ app.get("/auth/discord/callback", async (req, res) => {
   }
 });
 
-// ================= LOGOUT =================
+/* ================= LOGOUT ================= */
 app.get("/logout", (req, res) => {
   req.session.destroy(() => res.redirect("/login"));
 });
 
-// ================= MAIN PAGE =================
+/* ================= MAIN PAGE ================= */
 app.get("/", async (req, res) => {
   try {
     const search = req.query.search || "";
@@ -174,16 +174,15 @@ app.get("/", async (req, res) => {
     });
 
   } catch (err) {
-    console.error("Main page error:", err);
+    console.error("MAIN ERROR:", err);
     res.status(500).send("Server error");
   }
 });
 
-// ================= ADD =================
+/* ================= ADD ================= */
 app.post("/add", async (req, res) => {
   try {
     if (!req.session?.user) return res.redirect("/login");
-
     if (!(await isManager(req.session.user.id)))
       return res.status(403).send("No permission");
 
@@ -201,11 +200,10 @@ app.post("/add", async (req, res) => {
   }
 });
 
-// ================= DELETE =================
+/* ================= DELETE ================= */
 app.post("/delete", async (req, res) => {
   try {
     if (!req.session?.user) return res.redirect("/login");
-
     if (!(await isManager(req.session.user.id)))
       return res.status(403).send("No permission");
 
@@ -218,11 +216,10 @@ app.post("/delete", async (req, res) => {
   }
 });
 
-// ================= EDIT =================
+/* ================= EDIT ================= */
 app.post("/edit", async (req, res) => {
   try {
     if (!req.session?.user) return res.redirect("/login");
-
     if (!(await isManager(req.session.user.id)))
       return res.status(403).send("No permission");
 
@@ -242,7 +239,7 @@ app.post("/edit", async (req, res) => {
   }
 });
 
-// ================= START =================
+/* ================= START ================= */
 const PORT = process.env.PORT || 8080;
 
 app.listen(PORT, () => {
