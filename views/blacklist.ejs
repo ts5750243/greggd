@@ -1,142 +1,203 @@
-<!DOCTYPE html>
-<html>
 <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
   <title>Greggs Blacklist</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;800&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
+
   <style>
-    body {
-      background: #111;
-      color: white;
-      font-family: Arial;
-      margin: 0;
-      padding: 20px;
+    :root{
+      --bg:#050505;
+      --panel:#0d0d0d;
+      --green:#00ff88;
+      --green-dark:#00cc66;
+      --text:#ffffff;
+      --muted:#9ca3af;
     }
 
-    .topbar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 20px;
+    *{
+      margin:0;
+      padding:0;
+      box-sizing:border-box;
     }
 
-    input, button {
-      padding: 8px;
-      border-radius: 6px;
-      border: none;
-      margin: 4px;
+    body{
+      background:#050505;
+      color:white;
+      font-family:'Rajdhani',sans-serif;
+      overflow-x:hidden;
+      min-height:100vh;
+      background-image:
+      linear-gradient(rgba(0,255,136,.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,255,136,.04) 1px, transparent 1px);
+      background-size:40px 40px;
     }
 
-    input {
-      background: #222;
-      color: white;
+    .hero{
+      text-align:center;
+      padding:80px 20px;
+      position:relative;
     }
 
-    button {
-      background: #2b6cff;
-      color: white;
-      cursor: pointer;
+    .hero::before{
+      content:"";
+      position:absolute;
+      width:500px;
+      height:500px;
+      background:radial-gradient(circle,var(--green) 0%,transparent 70%);
+      opacity:.08;
+      top:-150px;
+      left:50%;
+      transform:translateX(-50%);
+      filter:blur(80px);
     }
 
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 15px;
+    .logo{
+      width:120px;
+      height:120px;
+      border-radius:50%;
+      object-fit:cover;
+      border:3px solid var(--green);
+      box-shadow:0 0 30px var(--green);
+      margin-bottom:20px;
     }
 
-    th, td {
-      padding: 10px;
-      border-bottom: 1px solid #333;
-      text-align: left;
+    h1{
+      font-family:'Orbitron',sans-serif;
+      font-size:4rem;
+      color:var(--green);
+      text-shadow:
+      0 0 10px var(--green),
+      0 0 20px var(--green),
+      0 0 40px var(--green);
     }
 
-    .hidden {
-      color: #666;
-      font-style: italic;
+    .subtitle{
+      margin-top:10px;
+      color:#cfcfcf;
+      font-size:1.2rem;
     }
 
-    .danger {
-      background: red;
+    .status{
+      display:inline-block;
+      margin-top:20px;
+      padding:10px 18px;
+      border-radius:999px;
+      background:#0f0f0f;
+      border:1px solid var(--green);
+      box-shadow:0 0 15px rgba(0,255,136,.4);
+      animation:pulse 2s infinite;
+    }
+
+    @keyframes pulse{
+      0%{box-shadow:0 0 5px rgba(0,255,136,.3);}
+      50%{box-shadow:0 0 25px rgba(0,255,136,.8);}
+      100%{box-shadow:0 0 5px rgba(0,255,136,.3);}
+    }
+
+    .container{
+      width:95%;
+      max-width:1400px;
+      margin:auto;
+    }
+
+    .card{
+      background:rgba(15,15,15,.9);
+      border:1px solid rgba(0,255,136,.25);
+      border-radius:16px;
+      padding:20px;
+      margin-bottom:20px;
+      backdrop-filter:blur(8px);
+      box-shadow:0 0 20px rgba(0,255,136,.08);
+    }
+
+    .search-box{
+      width:100%;
+      padding:14px;
+      background:#111;
+      border:1px solid #333;
+      color:white;
+      border-radius:10px;
+      font-size:1rem;
+    }
+
+    .search-box:focus{
+      outline:none;
+      border-color:var(--green);
+      box-shadow:0 0 15px rgba(0,255,136,.5);
+    }
+
+    .btn{
+      background:var(--green);
+      color:black;
+      border:none;
+      padding:12px 18px;
+      border-radius:10px;
+      font-weight:bold;
+      cursor:pointer;
+      transition:.25s;
+    }
+
+    .btn:hover{
+      transform:translateY(-2px);
+      box-shadow:0 0 20px var(--green);
+    }
+
+    table{
+      width:100%;
+      border-collapse:collapse;
+    }
+
+    th{
+      background:#0d0d0d;
+      color:var(--green);
+      font-family:'Orbitron';
+    }
+
+    th,td{
+      padding:14px;
+      border-bottom:1px solid #222;
+      text-align:left;
+    }
+
+    tr:hover{
+      background:#101010;
+    }
+
+    .discord-id{
+      color:#7289da;
+    }
+
+    .steam-id{
+      color:#f5b942;
+    }
+
+    footer{
+      text-align:center;
+      padding:30px;
+      color:#888;
     }
   </style>
 </head>
 
 <body>
 
-<div class="topbar">
-  <div style="display:flex; align-items:center; gap:10px;">
-    <img src="https://i.imgur.com/lhNa6cM.png" width="40" alt="Greggs Logo">
-    <h1 style="margin:0;">Greggs Blacklist</h1>
+<div class="hero">
+
+  <img src="https://imgur.com/lhNa6cM" class="logo">
+
+  <h1>Greggs Blacklist</h1>
+
+  <p class="subtitle">
+    Blacklist Management System
+  </p>
+
+  <div class="status">
+    🟢 Database Online
   </div>
 
-  <div>
-    <% if (user) { %>
-      <span>Logged in as <%= user.username %></span>
-      <a href="/logout"><button>Logout</button></a>
-    <% } else { %>
-      <a href="/login"><button>Login</button></a>
-    <% } %>
-  </div>
 </div>
-
-  <!-- SEARCH -->
-  <form method="GET">
-    <input name="search" placeholder="Search..." value="<%= search %>">
-    <button type="submit">Search</button>
-  </form>
-
-  <!-- ADD ENTRY (ONLY STAFF SEES THIS BUTTON) -->
-  <% if (canEdit) { %>
-    <h3>Add Entry</h3>
-
-    <form method="POST" action="/add">
-      <input name="name" placeholder="Name" required>
-      <input name="steam_id" placeholder="Steam ID">
-      <input name="reason" placeholder="Reason">
-      <input name="discord_id" placeholder="Discord ID (optional)">
-      <button type="submit">Add</button>
-    </form>
-  <% } %>
-
-  <!-- TABLE -->
-  <table>
-    <thead>
-      <tr>
-        <th>Name</th>
-        <th>Steam ID</th>
-        <th>Reason</th>
-        <th>Discord ID</th>
-        <th>Actions</th>
-      </tr>
-    </thead>
-
-    <tbody>
-      <% data.forEach(entry => { %>
-        <tr>
-          <td><%= entry.name %></td>
-          <td><%= entry.steam_id || "-" %></td>
-          <td><%= entry.reason %></td>
-
-          <td>
-            <% if (user) { %>
-              <%= entry.discord_id || "-" %>
-            <% } else { %>
-              <span class="hidden">Hidden</span>
-            <% } %>
-          </td>
-
-          <td>
-            <% if (canEdit) { %>
-              <form method="POST" action="/delete">
-                <input type="hidden" name="id" value="<%= entry.id %>">
-                <button class="danger" type="submit">Remove</button>
-              </form>
-            <% } else { %>
-              -
-            <% } %>
-          </td>
-        </tr>
-      <% }) %>
-    </tbody>
-  </table>
-
-</body>
-</html>
