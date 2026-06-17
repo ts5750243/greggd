@@ -20,54 +20,37 @@ const {
 // ================= FETCH =================
 const fetch = globalThis.fetch;
 
+// ================= APP SETUP =================
+app.use(express.urlencoded({ extended: true }));
+
+app.use(
+  session({
+    secret: SESSION_SECRET || "greggs_secret",
+    resave: false,
+    saveUninitialized: false,
+  })
+);
+
+app.set("view engine", "ejs");
+
 // ================= DB =================
 const pool = new Pool({
   connectionString: DATABASE_URL,
   ssl: DATABASE_URL ? { rejectUnauthorized: false } : false
 });
 
-// ================= CREATE TABLE =================
+// Create table
 (async () => {
-  try {
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS blacklist (
-        id SERIAL PRIMARY KEY,
-        name TEXT,
-        steam_id TEXT,
-        reason TEXT,
-        discord_id TEXT
-      )
-    `);
-    console.log("DB ready");
-  } catch (err) {
-    console.error("DB error:", err);
-  }
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS blacklist (
+      id SERIAL PRIMARY KEY,
+      name TEXT,
+      steam_id TEXT,
+      reason TEXT,
+      discord_id TEXT
+    )
+  `);
 })();
-
-// ================= MIDDLEWARE =================
-app.use(express.urlencoded({ extended: true }));
-
-app.use(
-  session({
-    secret: SESSION_SECRET || "secret",
-    resave: false,
-    saveUninitialized: false
-  })
-);
-
-app.set("view engine", "ejs");
-
-// ================= DISCORD REQUEST =================
-async function discordRequest(url, options = {}) {
-  return await fetch(url, {
-    ...options,
-    headers: {
-      Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
-      "Content-Type": "application/json",
-      ...(options.headers || {})
-    }
-  });
-}
 
 // ================= ROLE CHECK =================
 async function isManager(userId) {
@@ -75,32 +58,31 @@ async function isManager(userId) {
     const res = await fetch(
       `https://discord.com/api/guilds/${GUILD_ID}/members/${userId}`,
       {
-        headers: {
-          Authorization: `Bot ${DISCORD_BOT_TOKEN}`
-        }
+        headers: { Authorization: `Bot ${DISCORD_BOT_TOKEN}` }
       }
     );
 
     if (!res.ok) return false;
 
     const data = await res.json();
+    const roles = data.roles || [];
 
     return (
-      data.roles?.includes(MANAGEMENT_ROLE_ID) ||
-      data.roles?.includes(MANAGEMENT_ROLE_ID_2)
+      roles.includes(MANAGEMENT_ROLE_ID) ||
+      roles.includes(MANAGEMENT_ROLE_ID_2)
     );
   } catch {
     return false;
   }
 }
 
-// ================= LOGIN =================
+// ================= DISCORD LOGIN =================
 app.get("/login", (req, res) => {
   const params = new URLSearchParams({
     client_id: DISCORD_CLIENT_ID,
     response_type: "code",
     redirect_uri: CALLBACK_URL,
-    scope: "identify guilds.members.read"
+    scope: "identify guilds.members.read",
   });
 
   res.redirect(`https://discord.com/oauth2/authorize?${params}`);
@@ -111,43 +93,38 @@ app.get("/auth/discord/callback", async (req, res) => {
   const code = req.query.code;
   if (!code) return res.send("No code");
 
-  try {
-    const tokenRes = await fetch("https://discord.com/api/oauth2/token", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded"
-      },
-      body: new URLSearchParams({
-        client_id: DISCORD_CLIENT_ID,
-        client_secret: DISCORD_CLIENT_SECRET,
-        grant_type: "authorization_code",
-        code,
-        redirect_uri: CALLBACK_URL
-      })
-    });
+  const body = new URLSearchParams({
+    client_id: DISCORD_CLIENT_ID,
+    client_secret: DISCORD_CLIENT_SECRET,
+    grant_type: "authorization_code",
+    code,
+    redirect_uri: CALLBACK_URL,
+  });
 
-    const token = await tokenRes.json();
+  const tokenRes = await fetch("https://discord.com/api/oauth2/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body,
+  });
 
-    if (!token.access_token) return res.send("OAuth failed");
+  const token = await tokenRes.json();
 
-    const userRes = await fetch("https://discord.com/api/users/@me", {
-      headers: {
-        Authorization: `Bearer ${token.access_token}`
-      }
-    });
+  if (!token.access_token) return res.send("OAuth failed");
 
-    const user = await userRes.json();
+  const userRes = await fetch("https://discord.com/api/users/@me", {
+    headers: {
+      Authorization: `Bearer ${token.access_token}`,
+    },
+  });
 
-    req.session.user = {
-      id: user.id,
-      username: user.username
-    };
+  const user = await userRes.json();
 
-    res.redirect("/");
-  } catch (err) {
-    console.error(err);
-    res.status(500).send("OAuth error");
-  }
+  req.session.user = {
+    id: user.id,
+    username: user.username,
+  };
+
+  res.redirect("/");
 });
 
 // ================= LOGOUT =================
@@ -157,44 +134,39 @@ app.get("/logout", (req, res) => {
 
 // ================= MAIN PAGE =================
 app.get("/", async (req, res) => {
-  try {
-    const search = req.query.search || "";
+  const search = req.query.search || "";
 
-    let query = "SELECT * FROM blacklist";
-    let params = [];
+  let query = "SELECT * FROM blacklist";
+  let params = [];
 
-    if (search) {
-      query += `
-        WHERE name ILIKE $1
-        OR steam_id ILIKE $1
-        OR reason ILIKE $1
-        OR discord_id ILIKE $1
-      `;
-      params = [`%${search}%`];
-    }
-
-    query += " ORDER BY id DESC";
-
-    const result = await pool.query(query, params);
-
-    let canEdit = false;
-    if (req.session?.user?.id) {
-      canEdit = await isManager(req.session.user.id);
-    }
-
-    res.render("blacklist", {
-      user: req.session.user || null,
-      data: result.rows,
-      canEdit,
-      search
-    });
-  } catch (err) {
-    console.error("MAIN ERROR:", err);
-    res.status(500).send("Server error");
+  if (search) {
+    query += `
+      WHERE name ILIKE $1
+      OR steam_id ILIKE $1
+      OR reason ILIKE $1
+      OR discord_id ILIKE $1
+    `;
+    params = [`%${search}%`];
   }
+
+  query += " ORDER BY id DESC";
+
+  const data = await pool.query(query, params);
+
+  let canEdit = false;
+  if (req.session?.user?.id) {
+    canEdit = await isManager(req.session.user.id);
+  }
+
+  res.render("blacklist", {
+    user: req.session.user || null,
+    data: data.rows,
+    canEdit,
+    search
+  });
 });
 
-// ================= ADD (BAN) =================
+// ================= ADD =================
 app.post("/add", async (req, res) => {
   try {
     if (!req.session?.user) return res.redirect("/login");
@@ -208,56 +180,65 @@ app.post("/add", async (req, res) => {
       [name, steam_id, reason, discord_id]
     );
 
-    // BAN
-    if (discord_id && /^\d{17,19}$/.test(discord_id)) {
-      await discordRequest(
+    // AUTO BAN
+    if (discord_id) {
+      await fetch(
         `https://discord.com/api/guilds/${GUILD_ID}/bans/${discord_id}`,
         {
           method: "PUT",
+          headers: {
+            Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify({
             reason: reason || "Blacklisted"
-          })
+          }),
         }
       );
     }
 
     res.redirect("/");
   } catch (err) {
-    console.error("ADD ERROR:", err);
-    res.status(500).send("DB error");
+    console.error(err);
+    res.status(500).send("Add failed");
   }
 });
 
-// ================= DELETE (UNBAN) =================
+// ================= DELETE =================
 app.post("/delete", async (req, res) => {
   try {
     if (!req.session?.user) return res.redirect("/login");
     if (!(await isManager(req.session.user.id)))
       return res.status(403).send("No permission");
 
+    const { id } = req.body;
+
     const row = await pool.query(
       "SELECT discord_id FROM blacklist WHERE id=$1",
-      [req.body.id]
+      [id]
     );
 
-    const discordId = row.rows[0]?.discord_id;
+    const discord_id = row.rows[0]?.discord_id;
 
-    // UNBAN
-    if (discordId && /^\d{17,19}$/.test(discordId)) {
-      await discordRequest(
-        `https://discord.com/api/guilds/${GUILD_ID}/bans/${discordId}`,
+    // UNBAN ON DELETE
+    if (discord_id) {
+      await fetch(
+        `https://discord.com/api/guilds/${GUILD_ID}/bans/${discord_id}`,
         {
-          method: "DELETE"
+          method: "DELETE",
+          headers: {
+            Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
+          },
         }
       );
     }
 
-    await pool.query("DELETE FROM blacklist WHERE id=$1", [req.body.id]);
+    await pool.query("DELETE FROM blacklist WHERE id=$1", [id]);
 
     res.redirect("/");
   } catch (err) {
-    console.error("DELETE ERROR:", err);
-    res.status(500).send("DB error");
+    console.error(err);
+    res.status(500).send("Delete failed");
   }
 });
 
@@ -271,16 +252,14 @@ app.post("/edit", async (req, res) => {
     const { id, name, steam_id, reason, discord_id } = req.body;
 
     await pool.query(
-      `UPDATE blacklist
-       SET name=$1, steam_id=$2, reason=$3, discord_id=$4
-       WHERE id=$5`,
+      `UPDATE blacklist SET name=$1, steam_id=$2, reason=$3, discord_id=$4 WHERE id=$5`,
       [name, steam_id, reason, discord_id, id]
     );
 
     res.redirect("/");
   } catch (err) {
-    console.error("EDIT ERROR:", err);
-    res.status(500).send("DB error");
+    console.error(err);
+    res.status(500).send("Edit failed");
   }
 });
 
@@ -288,5 +267,5 @@ app.post("/edit", async (req, res) => {
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, "0.0.0.0", () => {
-  console.log("Server running on", PORT);
+  console.log("Greggs Blacklist running on port", PORT);
 });
