@@ -1,31 +1,25 @@
 const express = require("express");
 const session = require("express-session");
 const { Pool } = require("pg");
+require("dotenv").config();
 
 const app = express();
 
 // ================= ENV =================
 const {
-  DISCORD_CLIENT_ID,
-  DISCORD_CLIENT_SECRET,
-  CALLBACK_URL,
-  GUILD_ID,
-  DISCORD_BOT_TOKEN,
-  MANAGEMENT_ROLE_ID,
-  MANAGEMENT_ROLE_ID_2,
   DATABASE_URL,
-  SESSION_SECRET
+  SESSION_SECRET,
+  ADMIN_USERNAME,
+  ADMIN_PASSWORD
 } = process.env;
-
-// ================= FETCH =================
-const fetch = globalThis.fetch;
 
 // ================= APP SETUP =================
 app.use(express.urlencoded({ extended: true }));
+app.use(express.static("public"));
 
 app.use(
   session({
-    secret: SESSION_SECRET || "greggs_secret",
+    secret: SESSION_SECRET || "change_this_secret",
     resave: false,
     saveUninitialized: false,
   })
@@ -33,239 +27,175 @@ app.use(
 
 app.set("view engine", "ejs");
 
-// ================= DB =================
+// ================= DATABASE =================
 const pool = new Pool({
   connectionString: DATABASE_URL,
-  ssl: DATABASE_URL ? { rejectUnauthorized: false } : false
+  ssl: DATABASE_URL ? { rejectUnauthorized: false } : false,
 });
 
-// Create table
+// Create tables if they don't exist
 (async () => {
   await pool.query(`
-    CREATE TABLE IF NOT EXISTS blacklist (
+    CREATE TABLE IF NOT EXISTS people (
       id SERIAL PRIMARY KEY,
-      name TEXT,
-      steam_id TEXT,
-      reason TEXT,
-      discord_id TEXT
-    )
+      name TEXT NOT NULL,
+      preferred_name TEXT,
+      notes TEXT,
+      is_active BOOLEAN DEFAULT true,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS schedules (
+      id SERIAL PRIMARY KEY,
+      person_id INTEGER NOT NULL REFERENCES people(id) ON DELETE CASCADE,
+      date DATE NOT NULL,
+      start_time TIME,
+      end_time TIME,
+      lunch_start TIME,
+      lunch_end TIME,
+      notes TEXT,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE (person_id, date)
+    );
   `);
 })();
 
-// ================= ROLE CHECK =================
-async function isManager(userId) {
-  try {
-    const res = await fetch(
-      `https://discord.com/api/guilds/${GUILD_ID}/members/${userId}`,
-      {
-        headers: { Authorization: `Bot ${DISCORD_BOT_TOKEN}` }
-      }
-    );
-
-    if (!res.ok) return false;
-
-    const data = await res.json();
-    const roles = data.roles || [];
-
-    return (
-      roles.includes(MANAGEMENT_ROLE_ID) ||
-      roles.includes(MANAGEMENT_ROLE_ID_2)
-    );
-  } catch {
-    return false;
+// ================= AUTH HELPER =================
+function requireLogin(req, res, next) {
+  if (req.session && req.session.loggedIn) {
+    return next();
   }
+  res.redirect("/login");
 }
 
-// ================= DISCORD LOGIN =================
+// ================= LOGIN =================
 app.get("/login", (req, res) => {
-  const params = new URLSearchParams({
-    client_id: DISCORD_CLIENT_ID,
-    response_type: "code",
-    redirect_uri: CALLBACK_URL,
-    scope: "identify guilds.members.read",
-  });
-
-  res.redirect(`https://discord.com/oauth2/authorize?${params}`);
+  if (req.session.loggedIn) return res.redirect("/");
+  res.render("login", { error: null });
 });
 
-// ================= CALLBACK =================
-app.get("/auth/discord/callback", async (req, res) => {
-  const code = req.query.code;
-  if (!code) return res.send("No code");
+app.post("/login", (req, res) => {
+  const { username, password } = req.body;
 
-  const body = new URLSearchParams({
-    client_id: DISCORD_CLIENT_ID,
-    client_secret: DISCORD_CLIENT_SECRET,
-    grant_type: "authorization_code",
-    code,
-    redirect_uri: CALLBACK_URL,
-  });
+  if (
+    username === (ADMIN_USERNAME || "admin") &&
+    password === (ADMIN_PASSWORD || "password")
+  ) {
+    req.session.loggedIn = true;
+    return res.redirect("/");
+  }
 
-  const tokenRes = await fetch("https://discord.com/api/oauth2/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body,
-  });
-
-  const token = await tokenRes.json();
-
-  if (!token.access_token) return res.send("OAuth failed");
-
-  const userRes = await fetch("https://discord.com/api/users/@me", {
-    headers: {
-      Authorization: `Bearer ${token.access_token}`,
-    },
-  });
-
-  const user = await userRes.json();
-
-  req.session.user = {
-    id: user.id,
-    username: user.username,
-  };
-
-  res.redirect("/");
+  res.render("login", { error: "Wrong username or password" });
 });
 
-// ================= LOGOUT =================
 app.get("/logout", (req, res) => {
   req.session.destroy(() => res.redirect("/login"));
 });
 
-// ================= MAIN PAGE =================
-app.get("/", async (req, res) => {
-  const search = req.query.search || "";
+// ================= HOME (redirect) =================
+app.get("/", requireLogin, (req, res) => {
+  res.redirect("/people");
+});
 
-  let query = "SELECT * FROM blacklist";
-  let params = [];
+// ================= PEOPLE =================
+app.get("/people", requireLogin, async (req, res) => {
+  const result = await pool.query(
+    "SELECT * FROM people WHERE is_active = true ORDER BY name ASC"
+  );
+  res.render("people", { people: result.rows });
+});
 
-  if (search) {
-    query += `
-      WHERE name ILIKE $1
-      OR steam_id ILIKE $1
-      OR reason ILIKE $1
-      OR discord_id ILIKE $1
-    `;
-    params = [`%${search}%`];
-  }
+app.post("/people/add", requireLogin, async (req, res) => {
+  const { name, preferred_name, notes } = req.body;
+  await pool.query(
+    "INSERT INTO people (name, preferred_name, notes) VALUES ($1, $2, $3)",
+    [name, preferred_name || null, notes || null]
+  );
+  res.redirect("/people");
+});
 
-  query += " ORDER BY id DESC";
+app.post("/people/edit", requireLogin, async (req, res) => {
+  const { id, name, preferred_name, notes } = req.body;
+  await pool.query(
+    `UPDATE people 
+     SET name = $1, preferred_name = $2, notes = $3, updated_at = NOW() 
+     WHERE id = $4`,
+    [name, preferred_name || null, notes || null, id]
+  );
+  res.redirect("/people");
+});
 
-  const data = await pool.query(query, params);
+app.post("/people/deactivate", requireLogin, async (req, res) => {
+  const { id } = req.body;
+  await pool.query(
+    "UPDATE people SET is_active = false, updated_at = NOW() WHERE id = $1",
+    [id]
+  );
+  res.redirect("/people");
+});
 
-  let canEdit = false;
-  if (req.session?.user?.id) {
-    canEdit = await isManager(req.session.user.id);
-  }
+// ================= SCHEDULE =================
+app.get("/schedule", requireLogin, async (req, res) => {
+  const date = req.query.date || new Date().toISOString().split("T")[0];
 
-  res.render("blacklist", {
-    user: req.session.user || null,
-    data: data.rows,
-    canEdit,
-    search
+  const people = await pool.query(
+    "SELECT * FROM people WHERE is_active = true ORDER BY name ASC"
+  );
+
+  const schedules = await pool.query(
+    "SELECT * FROM schedules WHERE date = $1",
+    [date]
+  );
+
+  // Make a quick lookup map
+  const scheduleMap = {};
+  schedules.rows.forEach((s) => {
+    scheduleMap[s.person_id] = s;
+  });
+
+  res.render("schedule", {
+    date,
+    people: people.rows,
+    scheduleMap,
   });
 });
 
-// ================= ADD =================
-app.post("/add", async (req, res) => {
-  try {
-    if (!req.session?.user) return res.redirect("/login");
-    if (!(await isManager(req.session.user.id)))
-      return res.status(403).send("No permission");
+app.post("/schedule/save", requireLogin, async (req, res) => {
+  const { person_id, date, start_time, end_time, lunch_start, lunch_end, notes } = req.body;
 
-    const { name, steam_id, reason, discord_id } = req.body;
+  await pool.query(
+    `
+    INSERT INTO schedules (person_id, date, start_time, end_time, lunch_start, lunch_end, notes)
+    VALUES ($1, $2, $3, $4, $5, $6, $7)
+    ON CONFLICT (person_id, date)
+    DO UPDATE SET
+      start_time = EXCLUDED.start_time,
+      end_time = EXCLUDED.end_time,
+      lunch_start = EXCLUDED.lunch_start,
+      lunch_end = EXCLUDED.lunch_end,
+      notes = EXCLUDED.notes,
+      updated_at = NOW()
+    `,
+    [
+      person_id,
+      date,
+      start_time || null,
+      end_time || null,
+      lunch_start || null,
+      lunch_end || null,
+      notes || null,
+    ]
+  );
 
-    await pool.query(
-      "INSERT INTO blacklist (name, steam_id, reason, discord_id) VALUES ($1,$2,$3,$4)",
-      [name, steam_id, reason, discord_id]
-    );
-
-    // AUTO BAN
-    if (discord_id) {
-      await fetch(
-        `https://discord.com/api/guilds/${GUILD_ID}/bans/${discord_id}`,
-        {
-          method: "PUT",
-          headers: {
-            Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            reason: reason || "Blacklisted"
-          }),
-        }
-      );
-    }
-
-    res.redirect("/");
-  } catch (err) {
-    console.error(err);
-    res.status(500).send("Add failed");
-  }
-});
-
-// ================= DELETE =================
-app.post("/delete", async (req, res) => {
-  try {
-    if (!req.session?.user) return res.redirect("/login");
-    if (!(await isManager(req.session.user.id)))
-      return res.status(403).send("No permission");
-
-    const { id } = req.body;
-
-    const row = await pool.query(
-      "SELECT discord_id FROM blacklist WHERE id=$1",
-      [id]
-    );
-
-    const discord_id = row.rows[0]?.discord_id;
-
-    // UNBAN ON DELETE
-    if (discord_id) {
-      await fetch(
-        `https://discord.com/api/guilds/${GUILD_ID}/bans/${discord_id}`,
-        {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
-          },
-        }
-      );
-    }
-
-    await pool.query("DELETE FROM blacklist WHERE id=$1", [id]);
-
-    res.redirect("/");
-  } catch (err) {
-    console.error(err);
-    res.status(500).send("Delete failed");
-  }
-});
-
-// ================= EDIT =================
-app.post("/edit", async (req, res) => {
-  try {
-    if (!req.session?.user) return res.redirect("/login");
-    if (!(await isManager(req.session.user.id)))
-      return res.status(403).send("No permission");
-
-    const { id, name, steam_id, reason, discord_id } = req.body;
-
-    await pool.query(
-      `UPDATE blacklist SET name=$1, steam_id=$2, reason=$3, discord_id=$4 WHERE id=$5`,
-      [name, steam_id, reason, discord_id, id]
-    );
-
-    res.redirect("/");
-  } catch (err) {
-    console.error(err);
-    res.status(500).send("Edit failed");
-  }
+  res.redirect(`/schedule?date=${date}`);
 });
 
 // ================= START =================
 const PORT = process.env.PORT || 3000;
-
 app.listen(PORT, "0.0.0.0", () => {
-  console.log("Greggs Blacklist running on port", PORT);
+  console.log("People & Schedule running on port", PORT);
 });
