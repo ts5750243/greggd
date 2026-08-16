@@ -3,268 +3,75 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Greggs Blacklist</title>
-
+  <title>Login - People & Schedule</title>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700&family=Rajdhani:wght@400;500;600&display=swap" rel="stylesheet">
-
   <style>
     body {
       margin: 0;
       font-family: 'Rajdhani', sans-serif;
       background: #050505;
       color: white;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
     }
-
-    .hero {
+    .login-box {
+      background: #0d0d0d;
+      border: 1px solid #222;
+      padding: 30px;
+      border-radius: 12px;
+      width: 100%;
+      max-width: 360px;
       text-align: center;
-      padding: 25px;
     }
-
-    .logo {
-      width: 70px;
-      height: 70px;
-      border-radius: 50%;
-      border: 2px solid #00ff88;
-      box-shadow: 0 0 10px #00ff88;
-      object-fit: cover;
-    }
-
     h1 {
       font-family: 'Orbitron', sans-serif;
       color: #00ff88;
-      margin: 10px 0 5px;
+      margin-bottom: 20px;
+      font-size: 1.5rem;
     }
-
-    .status {
-      display: inline-block;
-      padding: 6px 12px;
-      border: 1px solid #00ff88;
-      border-radius: 20px;
-      font-size: 0.8rem;
-    }
-
-    .topbar {
-      display: flex;
-      justify-content: space-between;
-      padding: 12px;
-      background: #0d0d0d;
-      border-bottom: 1px solid #222;
-    }
-
-    .container {
-      width: 95%;
-      max-width: 1100px;
-      margin: auto;
-    }
-
-    .card {
-      background: #0d0d0d;
-      border: 1px solid #222;
-      padding: 14px;
-      border-radius: 10px;
-      margin-bottom: 14px;
-    }
-
     input {
       width: 100%;
-      padding: 9px;
-      margin: 5px 0;
+      padding: 12px;
+      margin: 8px 0;
       background: #111;
       border: 1px solid #333;
       color: white;
       border-radius: 6px;
+      box-sizing: border-box;
     }
-
-    .btn {
+    button {
+      width: 100%;
       background: #00ff88;
       color: black;
-      padding: 8px 12px;
+      padding: 12px;
       border: none;
       border-radius: 6px;
-      cursor: pointer;
       font-weight: bold;
-      margin-top: 5px;
+      cursor: pointer;
+      margin-top: 10px;
+      font-size: 1rem;
     }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-
-    th, td {
-      padding: 10px;
-      border-bottom: 1px solid #222;
-      text-align: left;
-    }
-
-    th {
-      color: #00ff88;
-    }
-
-    .steam-id { color: #f5b942; }
-    .discord-id { color: #7289da; }
-
-    /* MODAL */
-    #editModal {
-      display: none;
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0,0,0,0.8);
-      justify-content: center;
-      align-items: center;
-    }
-
-    #editModal div {
-      background: #111;
-      padding: 20px;
-      border-radius: 10px;
-      width: 300px;
+    .error {
+      color: #ff5555;
+      margin-bottom: 10px;
     }
   </style>
 </head>
-
 <body>
+  <div class="login-box">
+    <h1>People & Schedule</h1>
 
-<!-- HERO -->
-<div class="hero">
-  <img src="https://i.imgur.com/lhNa6cM.png" class="logo">
-  <h1>Greggs Blacklist</h1>
-  <div class="status">🟢 Database Online</div>
-</div>
-
-<!-- TOPBAR -->
-<div class="topbar">
-  <div>
-    <% if (user) { %>
-      Logged in as <%= user.username %>
-    <% } else { %>
-      Not logged in
+    <% if (error) { %>
+      <div class="error"><%= error %></div>
     <% } %>
-  </div>
 
-  <div>
-    <% if (user) { %>
-      <a href="/logout"><button class="btn">Logout</button></a>
-    <% } else { %>
-      <a href="/login"><button class="btn">Login</button></a>
-    <% } %>
-  </div>
-</div>
-
-<div class="container">
-
-  <!-- SEARCH -->
-  <div class="card">
-    <form method="GET" action="/">
-      <input name="search" placeholder="Search blacklist..." value="<%= search || '' %>">
-      <button class="btn">Search</button>
+    <form method="POST" action="/login">
+      <input type="text" name="username" placeholder="Username" required>
+      <input type="password" name="password" placeholder="Password" required>
+      <button type="submit">Login</button>
     </form>
   </div>
-
-  <!-- ADD -->
-  <% if (canEdit) { %>
-  <div class="card">
-    <h3>Add Entry</h3>
-    <form method="POST" action="/add">
-      <input name="name" placeholder="Name" required>
-      <input name="steam_id" placeholder="Steam ID">
-      <input name="reason" placeholder="Reason">
-      <input name="discord_id" placeholder="Discord ID">
-      <button class="btn">Add</button>
-    </form>
-  </div>
-  <% } %>
-
-  <!-- TABLE -->
-  <div class="card">
-    <table>
-      <tr>
-        <th>Name</th>
-        <th>Steam ID</th>
-        <th>Reason</th>
-        <th>Discord ID</th>
-        <% if (canEdit) { %><th>Action</th><% } %>
-      </tr>
-
-      <% if (data && data.length > 0) { %>
-        <% data.forEach(item => { %>
-          <tr>
-            <td><%= item.name %></td>
-            <td class="steam-id"><%= item.steam_id || '' %></td>
-            <td><%= item.reason || '' %></td>
-            <td class="discord-id"><%= item.discord_id || '' %></td>
-
-            <% if (canEdit) { %>
-            <td>
-
-              <!-- EDIT -->
-              <button class="btn" onclick="openEdit(
-                '<%= item.id %>',
-                '<%= item.name %>',
-                '<%= item.steam_id %>',
-                '<%= item.reason %>',
-                '<%= item.discord_id %>'
-              )">
-                Edit
-              </button>
-
-              <!-- REMOVE -->
-              <form method="POST" action="/delete" style="display:inline;">
-                <input type="hidden" name="id" value="<%= item.id %>">
-                <button class="btn">Remove</button>
-              </form>
-
-            </td>
-            <% } %>
-          </tr>
-        <% }) %>
-      <% } else { %>
-        <tr>
-          <td colspan="5">No entries found</td>
-        </tr>
-      <% } %>
-    </table>
-  </div>
-
-</div>
-
-<!-- EDIT MODAL -->
-<div id="editModal">
-  <div>
-    <h3 style="color:#00ff88;">Edit Entry</h3>
-
-    <form method="POST" action="/edit">
-      <input type="hidden" name="id" id="edit_id">
-
-      <input name="name" id="edit_name" placeholder="Name">
-      <input name="steam_id" id="edit_steam" placeholder="Steam ID">
-      <input name="reason" id="edit_reason" placeholder="Reason">
-      <input name="discord_id" id="edit_discord" placeholder="Discord ID">
-
-      <button class="btn">Save</button>
-      <button type="button" class="btn" onclick="closeEdit()">Cancel</button>
-    </form>
-  </div>
-</div>
-
-<script>
-function openEdit(id, name, steam, reason, discord) {
-  document.getElementById("edit_id").value = id;
-  document.getElementById("edit_name").value = name;
-  document.getElementById("edit_steam").value = steam;
-  document.getElementById("edit_reason").value = reason;
-  document.getElementById("edit_discord").value = discord;
-
-  document.getElementById("editModal").style.display = "flex";
-}
-
-function closeEdit() {
-  document.getElementById("editModal").style.display = "none";
-}
-</script>
-
 </body>
 </html>
