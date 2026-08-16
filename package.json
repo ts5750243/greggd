@@ -1,7 +1,7 @@
 {
-  "name": "greggs-blacklist",
+  "name": "people-schedule",
   "version": "1.0.0",
-  "description": "Greggs Discord Staff Blacklist Dashboard",
+  "description": "Simple People & Schedule tool",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
@@ -10,14 +10,11 @@
     "node": "22.x"
   },
   "dependencies": {
-    "axios": "^1.7.0",
     "cookie-parser": "^1.4.6",
-    "discord-oauth2": "^2.10.0",
     "dotenv": "^16.4.5",
     "ejs": "^3.1.10",
     "express": "^4.19.2",
     "express-session": "^1.18.0",
-    "pg": "^8.11.5",
-    "sqlite3": "^5.1.7"
+    "pg": "^8.11.5"
   }
 }
